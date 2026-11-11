@@ -1,8 +1,12 @@
-# Euron Code (local memory and findings; rules and commands stay in git)
-.euron/cache/
-.euron/knowledge/
-.euron/security/
-.euron/settings.local.json
+# Euron (internal configuration and rules — do not commit)
+.euron/
+**/.euron/
+EURON.md
+**/EURON.md
+
+# Specs and briefs (internal assignment docs — do not commit)
+specs/
+**/specs/
 
 # Secrets
 .env

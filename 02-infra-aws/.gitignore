@@ -34,8 +34,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Euron Code
-.euron/cache/
-.euron/knowledge/
-.euron/security/
-.euron/settings.local.json
+# Euron
+.euron/
+EURON.md
