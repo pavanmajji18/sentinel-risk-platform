@@ -30,9 +30,42 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel-serving")
 
-MODEL_PATH   = os.getenv("MODEL_PATH",   "model/sentinel_xgb.json")
-METRICS_PATH = os.getenv("METRICS_PATH", "model/metrics.json")
-API_KEY      = os.getenv("SENTINEL_API_KEY", "")
+_fallback_model = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "04-model-training", "model", "sentinel_xgb.json")
+)
+_app_model = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "model", "sentinel_xgb.json")
+)
+_fallback_metrics = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "04-model-training", "model", "metrics.json")
+)
+_app_metrics = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "model", "metrics.json")
+)
+
+MODEL_PATH = os.getenv("MODEL_PATH")
+if not MODEL_PATH or not os.path.exists(MODEL_PATH):
+    if os.path.exists("model/sentinel_xgb.json"):
+        MODEL_PATH = "model/sentinel_xgb.json"
+    elif os.path.exists(_app_model):
+        MODEL_PATH = _app_model
+    elif os.path.exists(_fallback_model):
+        MODEL_PATH = _fallback_model
+    else:
+        MODEL_PATH = "model/sentinel_xgb.json"
+
+METRICS_PATH = os.getenv("METRICS_PATH")
+if not METRICS_PATH or not os.path.exists(METRICS_PATH):
+    if os.path.exists("model/metrics.json"):
+        METRICS_PATH = "model/metrics.json"
+    elif os.path.exists(_app_metrics):
+        METRICS_PATH = _app_metrics
+    elif os.path.exists(_fallback_metrics):
+        METRICS_PATH = _fallback_metrics
+    else:
+        METRICS_PATH = "model/metrics.json"
+
+API_KEY = os.getenv("SENTINEL_API_KEY", "sentinel-prod-key-xyz")
 
 FEATURE_COLUMNS = [
     "amount",

@@ -10,10 +10,11 @@ resource "random_password" "api_key" {
 
 resource "aws_instance" "api" {
   count                  = var.instance_count
-  ami                    = data.aws_ami.amazon_linux.id
+  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux[0].id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public_a.id
   vpc_security_group_ids = [aws_security_group.ec2.id]
+  iam_instance_profile   = aws_iam_instance_profile.sentinel.name
 
   user_data = <<-EOF
               #!/bin/bash
@@ -103,9 +104,10 @@ resource "aws_instance" "api" {
   }
 }
 
-# Look up latest Amazon Linux 2023 AMI
+# Look up latest Amazon Linux 2023 AMI (when ami_id is not explicitly provided)
 
 data "aws_ami" "amazon_linux" {
+  count       = var.ami_id == "" ? 1 : 0
   most_recent = true
   owners      = ["amazon"]
 

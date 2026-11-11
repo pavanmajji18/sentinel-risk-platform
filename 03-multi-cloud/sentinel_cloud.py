@@ -22,10 +22,16 @@ from dotenv import load_dotenv
 
 # ── Load environment ────────────────────────────────────────────────
 load_dotenv()
+_infra_env = Path(__file__).resolve().parent.parent / "02-infra-aws" / ".env"
+if (not os.getenv("AWS_ACCESS_KEY_ID") or "your_aws" in os.getenv("AWS_ACCESS_KEY_ID", "")) and _infra_env.exists():
+    load_dotenv(_infra_env, override=True)
 
-BUCKET_NAME = os.getenv("BUCKET_NAME", "sentinel-corpus-main")
+import uuid
+_default_bucket = f"sentinel-corpus-{uuid.uuid4().hex[:8]}"
+BUCKET_NAME = os.getenv("BUCKET_NAME", _default_bucket)
 REGION = os.getenv("AWS_REGION", "us-east-1")
 CORPUS_DIR = Path(__file__).parent / "sentinel_corpus"
+
 
 
 def _s3_client():

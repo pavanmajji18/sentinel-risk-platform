@@ -6,4 +6,7 @@ instance_count = 1
 # Restrict SSH access to your own IP for security.
 # Find yours: curl https://checkip.amazonaws.com
 allowed_cidr_blocks = ["YOUR_IP/32"]
+# Optional: explicit AMI ID (e.g. if organization SCP restricts ec2:DescribeImages)
+ami_id = "ami-0c101f26f147fa7fd"
+
 

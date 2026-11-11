@@ -21,3 +21,10 @@ variable "allowed_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "ami_id" {
+  description = "Explicit AMI ID to use. If unset, queries latest Amazon Linux 2023."
+  type        = string
+  default     = ""
+}
+

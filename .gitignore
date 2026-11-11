@@ -61,10 +61,12 @@ model_*.gz
 *.tfvars
 !*.tfvars.example
 
-# ---- Python cache ----
+# ---- Python cache & virtualenvs ----
 __pycache__/
 *.py[cod]
 *.egg-info/
 venv/
 .venv/
 env/
+.uv_python/
+.uv_cache/

@@ -20,6 +20,9 @@ override.tf.json
 *.pkl
 *.pkl.gz
 *.joblib
+model/
+app/model/
+
 
 # Python
 __pycache__/
