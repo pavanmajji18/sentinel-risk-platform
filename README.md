@@ -278,7 +278,7 @@ This project is licensed under the open-source **MIT License** — see the [LICE
 
 ```
 MIT License
-Copyright (c) 2026 Pavan Majji
+Copyright (c) 2026 Pavan Kumar Majji
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
