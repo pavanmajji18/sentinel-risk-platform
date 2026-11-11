@@ -25,6 +25,7 @@ import time
 import hashlib
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -334,7 +335,57 @@ async def score_v1(txn: TransactionRequest, x_api_key: str | None = Header(None)
         model_version="v1"
     )
 
-# v2: Rule + model hybrid scoring (stub — loads XGBoost model when available)
+_MODEL = None
+
+def _get_model():
+    """Lazily load XGBoost model from SENTINEL_MODEL_PATH or standard paths if present."""
+    global _MODEL
+    if _MODEL is not None:
+        return _MODEL
+    paths_to_check = []
+    env_path = os.getenv("SENTINEL_MODEL_PATH")
+    if env_path:
+        paths_to_check.append(Path(env_path))
+    base = Path(__file__).resolve().parent
+    paths_to_check.extend([
+        base / "model" / "sentinel_xgb.json",
+        base.parent.parent / "04-model-training" / "model" / "sentinel_xgb.json",
+        base.parent.parent / "05-model-serving" / "model" / "sentinel_xgb.json",
+    ])
+    for p in paths_to_check:
+        if p.exists():
+            try:
+                import xgboost as xgb
+                m = xgb.XGBClassifier()
+                m.load_model(str(p))
+                _MODEL = m
+                logger.info(f"Loaded XGBoost model from {p}")
+                return _MODEL
+            except Exception as e:
+                logger.warning(f"Could not load XGBoost model from {p}: {e}")
+    return None
+
+
+def _deterministic_feature_score(txn: TransactionRequest) -> float:
+    """Deterministic feature-weighted fallback score when no ML artifact is mounted."""
+    score = 0.0
+    if getattr(txn, "amount_to_avg_ratio", 1.0) > 3.0:
+        score += 0.25
+    if getattr(txn, "is_new_device", False):
+        score += 0.20
+    dist = getattr(txn, "customer_merchant_distance_km", getattr(txn, "distance_km", 0.0))
+    if dist > 100.0:
+        score += 0.15
+    if getattr(txn, "failed_attempts", 0) >= 3:
+        score += 0.15
+    if getattr(txn, "txn_count_1h", 0) >= 5:
+        score += 0.15
+    if getattr(txn, "is_night", False):
+        score += 0.10
+    return min(1.0, round(score, 4))
+
+
+# v2: Rule + model hybrid scoring (loads XGBoost model when available, deterministic fallback otherwise)
 @app.post("/v2/score")
 async def score_v2(txn: TransactionRequest, x_api_key: str | None = Header(None)):
     """
@@ -342,7 +393,7 @@ async def score_v2(txn: TransactionRequest, x_api_key: str | None = Header(None)
     
     Combines rule-engine score (60% weight) with model prediction (40% weight).
     When the XGBoost model is loaded, it blends model_output * 0.4 + rules * 0.6.
-    Without a loaded model, falls back to rule-only with a v2 wrapper.
+    Without a loaded model artifact, falls back to deterministic feature-weighted scoring.
     
     Requires X-API-Key header.
     """
@@ -350,10 +401,35 @@ async def score_v2(txn: TransactionRequest, x_api_key: str | None = Header(None)
 
     rule_score, triggered, explanations = evaluate_rules(txn)
     
-    # In a real deployment, load the XGBoost model here:
-    # model_score = model.predict(feature_vector(txn))[0]
-    # blended = rule_score * 0.6 + model_score * 0.4
-    model_score = 0.0  # stub: no model loaded yet
+    model = _get_model()
+    if model is not None:
+        try:
+            import pandas as pd
+            ratio = getattr(txn, "amount_to_avg_ratio", 1.0)
+            avg_amt = (txn.amount / ratio) if ratio else 0.0
+            dist = float(getattr(txn, "customer_merchant_distance_km", getattr(txn, "distance_km", 0.0)))
+            feat_dict = {
+                "amount": float(txn.amount),
+                "customer_avg_amount_90d": float(avg_amt),
+                "is_new_device": 1 if getattr(txn, "is_new_device", False) else 0,
+                "distance_km": dist,
+                "hour_of_day": int(getattr(txn, "hour_of_day", 12)),
+                "failed_attempts": int(getattr(txn, "failed_attempts", 0)),
+                "amount_to_avg_ratio": float(ratio),
+                "is_night": 1 if getattr(txn, "is_night", False) else 0,
+                "transaction_count_last_1_hour": int(getattr(txn, "txn_count_1h", 0)),
+                "transaction_amount_last_24_hours": float(getattr(txn, "txn_amount_last_24h", txn.amount)),
+                "time_since_last_txn": float(getattr(txn, "time_since_last_txn", 24.0)),
+                "account_age_days": int(getattr(txn, "customer_age_days", getattr(txn, "account_age_days", 365))),
+            }
+            df = pd.DataFrame([feat_dict])
+            model_score = float(model.predict_proba(df)[0, 1])
+        except Exception as e:
+            logger.warning(f"Inference error in score_v2: {e}; using feature-weighted fallback")
+            model_score = _deterministic_feature_score(txn)
+    else:
+        model_score = _deterministic_feature_score(txn)
+
     blended = min(rule_score * 0.6 + model_score * 0.4, 1.0)
     band = classify_band(blended)
 

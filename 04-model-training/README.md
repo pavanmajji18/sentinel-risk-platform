@@ -117,3 +117,10 @@ Compares model predictions against static rules across synthetic edge cases and 
 ```bash
 python test_model.py
 ```
+
+### 4. Run Automated Validation Suite
+Executes end-to-end dataset synthesis, temporal split verification, XGBoost training, holdout evaluation, artifact serialization, and rules benchmarking:
+```bash
+python validate_module04.py
+```
+

@@ -33,7 +33,7 @@ for fraud indicators using 15 rule-based features with configurable risk bands.
 ### 1.1 Navigate to the project directory
 
 ```powershell
-cd "D:\Euron\Work and Learn Super 30\Fast-Track\Task Files\Diwali week tasks\01-risk-api"
+cd 01-risk-api
 ```
 
 ### 1.2 Create a virtual environment (if you don't have one already)
@@ -591,7 +591,7 @@ Make sure you are in the `01-risk-api/` directory (where `test_transactions.py` 
 not inside `app/`:
 
 ```powershell
-cd "D:\Euron\...\01-risk-api"
+cd 01-risk-api
 python -m test_transactions
 ```
 

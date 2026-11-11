@@ -43,7 +43,7 @@ _app_metrics = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "model", "metrics.json")
 )
 
-MODEL_PATH = os.getenv("MODEL_PATH")
+MODEL_PATH = os.getenv("SENTINEL_MODEL_PATH") or os.getenv("MODEL_PATH")
 if not MODEL_PATH or not os.path.exists(MODEL_PATH):
     if os.path.exists("model/sentinel_xgb.json"):
         MODEL_PATH = "model/sentinel_xgb.json"
@@ -65,7 +65,9 @@ if not METRICS_PATH or not os.path.exists(METRICS_PATH):
     else:
         METRICS_PATH = "model/metrics.json"
 
-API_KEY = os.getenv("SENTINEL_API_KEY", "sentinel-prod-key-xyz")
+API_KEY = os.getenv("SENTINEL_API_KEY", "")
+if not API_KEY:
+    logger.warning("SENTINEL_API_KEY not set — authenticated endpoints will reject all requests")
 
 FEATURE_COLUMNS = [
     "amount",
@@ -231,10 +233,8 @@ def _predict_single(tx: Transaction) -> tuple[float, list[str]]:
 # ---------------------------------------------------------------------------
 
 def _check_key(x_api_key: str | None) -> None:
-    if not x_api_key:
-        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid X-API-Key")
+    if not API_KEY or not x_api_key or x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 
 def _request_id(tx: Transaction) -> str:

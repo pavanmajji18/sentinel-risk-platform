@@ -19,7 +19,7 @@ variable "instance_count" {
 variable "allowed_cidr_blocks" {
   description = "CIDR blocks allowed to reach the ALB"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["10.0.0.0/8"]
 }
 
 variable "ami_id" {

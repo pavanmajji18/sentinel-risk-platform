@@ -2,12 +2,15 @@
 
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
 
-APP_DIR = os.path.join(os.path.dirname(__file__), "app")
+APP_DIR = str(Path(__file__).resolve().parent / "app")
 sys.path.insert(0, APP_DIR)
 
-# Set test environment API key
-TEST_KEY = "test-secret-key-123"
+# Load test environment API key
+load_dotenv()
+TEST_KEY = os.getenv("SENTINEL_API_KEY", "dev-only-test-key")
 os.environ["SENTINEL_API_KEY"] = TEST_KEY
 
 import main

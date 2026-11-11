@@ -5,3 +5,8 @@ vpc_cidr          = "10.0.0.0/16"
 subnet_cidr       = "10.0.1.0/24"
 key_pair_name     = ""           # optional: set to your EC2 key pair name for SSH
 environment       = "dev"
+
+# Restrict inbound network access
+allowed_ssh_cidr_blocks = ["YOUR_IP/32"]
+allowed_api_cidr_blocks = ["YOUR_IP/32"]
+

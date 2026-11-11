@@ -39,3 +39,16 @@ variable "key_pair_name" {
   type        = string
   default     = ""
 }
+
+variable "allowed_ssh_cidr_blocks" {
+  description = "CIDR blocks allowed to reach SSH port 22"
+  type        = list(string)
+  default     = ["10.0.0.0/8"]
+}
+
+variable "allowed_api_cidr_blocks" {
+  description = "CIDR blocks allowed to reach API port 8000"
+  type        = list(string)
+  default     = ["10.0.0.0/8"]
+}
+

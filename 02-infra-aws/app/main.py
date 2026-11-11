@@ -1,5 +1,5 @@
 """
-SENTINEL: Real-time fraud scoring API (Task-2: Terraform-deployed on AWS).
+SENTINEL: Real-time fraud scoring API.
 
 Scoring engine: 10 engineered features, 14 risk rules, ML model (when available).
 Auth: X-API-Key header required (401 without).
@@ -40,11 +40,14 @@ for _env_path in [Path(__file__).parent / ".env", Path.cwd() / ".env"]:
         load_dotenv(_env_path)
         break
 
-SENTINEL_API_KEY: str = os.getenv("SENTINEL_API_KEY", "changeme-local-dev-key")
+SENTINEL_API_KEY: str = os.getenv("SENTINEL_API_KEY", "")
 MODEL_PATH: str = os.getenv("SENTINEL_MODEL_PATH", "model.json")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel")
+
+if not SENTINEL_API_KEY:
+    logger.warning("SENTINEL_API_KEY not set — authenticated endpoints will reject all requests")
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -383,13 +386,31 @@ def explain(txn: TransactionInput, triggered_rules: list[str], band: str) -> str
 # ML Model (optional: load from file if present)
 # ---------------------------------------------------------------------------
 
-def load_model(path: str) -> Optional[dict]:
-    """Load a serialized model dict from a JSON file (if present)."""
-    p = Path(path)
-    if not p.exists():
-        return None
-    with open(p) as f:
-        return json.load(f)
+def load_model(path: str):
+    """Load an XGBoost classifier or serialized model from path (if present)."""
+    paths_to_check = [Path(path)]
+    base = Path(__file__).resolve().parent
+    paths_to_check.extend([
+        base / "model.json",
+        base / "model" / "sentinel_xgb.json",
+        base.parent.parent / "04-model-training" / "model" / "sentinel_xgb.json",
+    ])
+    for p in paths_to_check:
+        if p.exists():
+            try:
+                import xgboost as xgb
+                m = xgb.XGBClassifier()
+                m.load_model(str(p))
+                logger.info("Loaded XGBoost model from %s", p)
+                return m
+            except Exception:
+                try:
+                    with open(p) as f:
+                        data = json.load(f)
+                    return data
+                except Exception:
+                    pass
+    return None
 
 
 MODEL = load_model(MODEL_PATH)
@@ -398,11 +419,35 @@ MODEL = load_model(MODEL_PATH)
 def predict_proba(features: dict) -> float:
     """
     Predict fraud probability. Uses ML model if loaded; falls back to
-    a simple heuristic based on feature values.
+    deterministic feature-weighted scoring.
     """
-    if MODEL and "threshold" in MODEL:
-        # Placeholder: in production, use a real model inference
-        pass
+    if MODEL is not None and hasattr(MODEL, "predict_proba"):
+        try:
+            import pandas as pd
+            feature_cols = [
+                "amount", "customer_avg_amount_90d", "is_new_device", "distance_km",
+                "hour_of_day", "failed_attempts", "amount_to_avg_ratio", "is_night",
+                "transaction_count_last_1_hour", "transaction_amount_last_24_hours",
+                "time_since_last_txn", "account_age_days"
+            ]
+            row = {
+                "amount": features.get("amount", 0.0),
+                "customer_avg_amount_90d": features.get("customer_avg_amount_90d", 0.0),
+                "is_new_device": int(features.get("is_new_device", 0)),
+                "distance_km": float(features.get("customer_merchant_distance_km", features.get("distance_km", 0.0))),
+                "hour_of_day": int(features.get("hour_of_day", 12)),
+                "failed_attempts": int(features.get("failed_attempts", 0)),
+                "amount_to_avg_ratio": float(features.get("amount_to_avg_ratio", 1.0)),
+                "is_night": int(features.get("is_night", 0)),
+                "transaction_count_last_1_hour": int(features.get("txn_count_last_1h", 0)),
+                "transaction_amount_last_24_hours": float(features.get("txn_amount_last_24h", 0.0)),
+                "time_since_last_txn": float(features.get("time_since_last_txn", 24.0)),
+                "account_age_days": int(features.get("customer_age_days", 365)),
+            }
+            df = pd.DataFrame([row], columns=feature_cols)
+            return float(MODEL.predict_proba(df)[0, 1])
+        except Exception as e:
+            logger.warning("Inference with loaded model failed: %s; using deterministic fallback", e)
 
     # Heuristic fallback: weighted sum of high-risk features
     score = 0.0
@@ -439,7 +484,7 @@ session_context = {"customers": {}, "merchants": {}, "devices": {}}
 
 def verify_api_key(x_api_key: Optional[str] = Header(None)) -> None:
     """Reject requests without a valid X-API-Key (401)."""
-    if not x_api_key or x_api_key != SENTINEL_API_KEY:
+    if not SENTINEL_API_KEY or not x_api_key or x_api_key != SENTINEL_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 

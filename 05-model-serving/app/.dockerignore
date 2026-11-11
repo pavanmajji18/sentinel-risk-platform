@@ -1,26 +1,53 @@
+# Secrets & Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python build & virtualenvs
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
-build/
+.pytest_cache/
 venv/
 .venv/
 env/
-.env
-.env.*
-.git/
-.gitignore
-*.md
-*.log
-logs/
+dist/
+build/
+
+# Terraform
 .terraform/
 *.tfstate*
 *.tfvars*
+.terraform.lock.hcl
+
+# Data & Models
 sentinel_data/
 documents/
 config_changes/
+data/
 *.csv
 *.parquet
 *.jsonl
+*.npz
+04-model-training/model/*.json
 *.pkl
+*.pkl.gz
 *.joblib
+*.onnx
+
+# Documentation & Git
+*.md
+.git/
+.gitignore
+.dockerignore
+
+# OS & Logs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
+logs/

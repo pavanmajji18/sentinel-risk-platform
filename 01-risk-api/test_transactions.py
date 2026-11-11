@@ -1,9 +1,14 @@
+import os
 import urllib.request
 import json
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+api_key = os.getenv("SENTINEL_API_KEY", "dev-only-test-key")
 
 base = "http://127.0.0.1:8000"
-headers = {"X-API-Key": "test-key-123", "Content-Type": "application/json"}
+headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
 tests = [
     {

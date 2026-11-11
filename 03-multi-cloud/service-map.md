@@ -24,3 +24,4 @@ This document defines the cross-cloud infrastructure mapping and operational arc
 * **Zero Shared Credentials:** Cross-cloud deployments avoid hardcoded credentials, utilizing provider-native instance identities and environment variables.
 * **Network Isolation:** Compute nodes never expose internal ports directly to the public internet; traffic ingress is channeled through verified load balancers.
 * **Corpus & Compliance Storage:** Regulatory documents and artifact hashes are verified across cloud object stores with secure presigned access URLs.
+

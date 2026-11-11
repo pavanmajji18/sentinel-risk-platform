@@ -6,13 +6,20 @@ Tests model loading, health endpoint, authentication, single prediction, and bat
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add app to path
 app_dir = Path(__file__).resolve().parent / "app"
 sys.path.insert(0, str(app_dir))
 
+load_dotenv()
+TEST_KEY = os.getenv("SENTINEL_API_KEY", "dev-only-test-key")
+os.environ["SENTINEL_API_KEY"] = TEST_KEY
+
 from fastapi import HTTPException
 import main
+main.API_KEY = TEST_KEY  # Ensure live override
+
 from main import (
     Transaction,
     BatchRequest,

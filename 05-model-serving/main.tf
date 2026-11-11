@@ -64,7 +64,7 @@ resource "aws_security_group" "sentinel" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_ssh_cidr_blocks
   }
 
   # API
@@ -72,7 +72,7 @@ resource "aws_security_group" "sentinel" {
     from_port   = 8000
     to_port     = 8000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_api_cidr_blocks
   }
 
   # Egress
@@ -132,9 +132,27 @@ resource "aws_iam_role" "sentinel" {
   }
 }
 
-resource "aws_iam_role_policy_attachment" "sentinel_s3_read" {
-  role       = aws_iam_role.sentinel.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+resource "aws_iam_role_policy" "sentinel_s3_read" {
+  name = "sentinel-s3-model-read"
+  role = aws_iam_role.sentinel.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ModelArtifactBucketRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.sentinel_data.arn,
+          "${aws_s3_bucket.sentinel_data.arn}/*"
+        ]
+      }
+    ]
+  })
 }
 
 resource "aws_iam_instance_profile" "sentinel" {
@@ -142,9 +160,26 @@ resource "aws_iam_instance_profile" "sentinel" {
   role = aws_iam_role.sentinel.name
 }
 
+# ─── Lookup Ubuntu 22.04 LTS AMI (when ami_id is not explicitly set) ─────
+data "aws_ami" "ubuntu" {
+  count       = var.ami_id == "" ? 1 : 0
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 # ─── GPU EC2 Instance ────────────────────────────────────────
 resource "aws_instance" "sentinel_gpu" {
-  ami                    = var.ami_id != "" ? var.ami_id : "ami-0c55b159cbfafe1f3"
+  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.ubuntu[0].id
   instance_type          = var.gpu_instance_type
   subnet_id              = aws_subnet.sentinel.id
   vpc_security_group_ids = [aws_security_group.sentinel.id]

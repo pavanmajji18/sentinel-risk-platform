@@ -95,7 +95,9 @@ On a held-out test set evaluated exactly once, the trained XGBoost model signifi
 sentinel-risk-platform/
 ├── LICENSE                          # Standard MIT open-source license
 ├── README.md                        # Platform documentation & portfolio showcase
+├── .env.example                     # Root environment configuration template
 ├── .gitignore                       # Multi-tier exclusion for secrets, state & raw data
+├── .terraformignore                 # Terraform packaging & plan exclusions
 ├── 01-risk-api/                     # Real-time transaction scoring service
 │   ├── README.md                    # Module architecture & endpoint specs
 │   ├── validate_module01.py         # Automated API validation test suite
@@ -125,18 +127,20 @@ sentinel-risk-platform/
 │   ├── README.md                    # Model training methodology & leakage prevention
 │   ├── train.py                     # Training pipeline & holdout evaluation
 │   ├── test_model.py                # Model vs. rules benchmark runner
+│   ├── validate_module04.py         # Automated ML pipeline validation test suite
 │   ├── sentinel_data.py             # Feature engineering & temporal split
 │   ├── sentinel_model.py            # XGBoost wrapper with PR-AUC metric
 │   ├── sentinel_rules.py            # Heuristic rules engine baseline
+│   ├── .env.example                 # Training module environment template
 │   ├── data/generate_data.py        # Synthetic transaction dataset generator
 │   └── model/
-│       ├── sentinel_xgb.json        # Serialized gradient boosted model
-│       └── metrics.json             # Model metadata & tuned threshold
+│       └── .gitkeep                 # Model artifact destination (generated locally)
 └── 05-model-serving/                # Model inference & cloud deployment
     ├── README.md                    # Serving architecture & latency discussion
     ├── validate_module05.py         # Automated serving validation test suite
     ├── sentinel_deploy.py           # Automated cloud deployment script (--dry-run)
     ├── main.tf                      # GPU VM cloud infrastructure
+    ├── variable.tf                  # Configurable network CIDRs & instance params
     └── app/
         ├── main.py                  # Serving FastAPI app (single & batch)
         ├── Dockerfile               # Multi-stage non-root container definition
@@ -175,6 +179,9 @@ pip install fastapi uvicorn pydantic python-dotenv requests xgboost scikit-learn
 ### 3. Environment Variable Configuration
 Sentinel isolates credentials through environment variable templates. Never commit `.env` or `terraform.tfvars`:
 ```bash
+# Copy root environment template
+cp .env.example .env
+
 # Configure AWS Infrastructure module
 cp 02-infra-aws/.env.example 02-infra-aws/.env
 cp 02-infra-aws/terraform.tfvars.example 02-infra-aws/terraform.tfvars
@@ -182,23 +189,43 @@ cp 02-infra-aws/terraform.tfvars.example 02-infra-aws/terraform.tfvars
 # Configure Multi-Cloud module
 cp 03-multi-cloud/.env.example 03-multi-cloud/.env
 
+# Configure Model Training module
+cp 04-model-training/.env.example 04-model-training/.env
+
 # Configure Model Serving module
 cp 05-model-serving/app/.env.example 05-model-serving/app/.env
 ```
+
+### 4. Generate Machine Learning Model Artifacts
+Before running the inference service in Module 05 with a trained model, run the training pipeline to generate the model artifacts locally:
+```bash
+python 04-model-training/train.py
+# Outputs: 04-model-training/model/sentinel_xgb.json and metrics.json
+```
+*(Note: If started without pre-trained model artifacts, both Module 01 and Module 05 automatically fall back to deterministic feature-weighted heuristic scoring.)*
 
 ---
 
 ## Reproducibility & Step-by-Step Verification
 
-Each module contains dedicated validation scripts and reproducible entry points:
+### Sequential Smoke-Test Suite (All Modules)
+Run all module validation suites in sequence:
+```bash
+python 01-risk-api/validate_module01.py
+python 03-multi-cloud/validate_module03.py
+python 04-model-training/validate_module04.py
+python 05-model-serving/validate_module05.py
+```
 
-### Step 1: Validate Module 01 (Risk API)
+### Individual Module Verification:
+
+#### Step 1: Validate Module 01 (Risk API)
 ```bash
 python 01-risk-api/validate_module01.py
 ```
 *Executes tests against health probes, API key enforcement, and clean/moderate/high risk boundary transactions.*
 
-### Step 2: Validate Module 02 (AWS Infrastructure)
+#### Step 2: Validate Module 02 (AWS Infrastructure)
 ```bash
 cd 02-infra-aws
 terraform init
@@ -208,7 +235,7 @@ cd ..
 ```
 *Validates declarative syntax and dry-runs resource planning for 22 interconnected cloud resources.*
 
-### Step 3: Validate Module 03 (Multi-Cloud Operations)
+#### Step 3: Validate Module 03 (Multi-Cloud Operations)
 ```bash
 cd 03-multi-cloud
 python validate_module03.py
@@ -216,16 +243,16 @@ cd ..
 ```
 *Verifies live STS identity, S3 API reachability, and regulatory corpus upload/presigning lifecycle.*
 
-### Step 4: Train & Benchmark Module 04 (Model Training)
+#### Step 4: Train, Evaluate & Validate Module 04 (Model Training)
 ```bash
 cd 04-model-training
-python train.py
+python validate_module04.py
 python test_model.py
 cd ..
 ```
-*Generates synthetic transactions, executes chronological temporal splitting, trains XGBoost, tunes the decision threshold, and verifies agreement with the rules baseline.*
+*Generates synthetic transactions, executes chronological temporal splitting, trains XGBoost, tunes the decision threshold, validates holdout metrics, and benchmarks against the rules baseline.*
 
-### Step 5: Validate Module 05 (Model Serving)
+#### Step 5: Validate Module 05 (Model Serving)
 ```bash
 cd 05-model-serving
 python validate_module05.py

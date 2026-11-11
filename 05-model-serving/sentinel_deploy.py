@@ -151,6 +151,9 @@ def create_security_group(ec2, vpc_id, resources):
         print(f"Error creating security group: {e}")
         return None
 
+    allowed_ssh_cidr = os.getenv("ALLOWED_SSH_CIDR", "10.0.0.0/8")
+    allowed_api_cidr = os.getenv("ALLOWED_API_CIDR", "10.0.0.0/8")
+
     # SSH
     try:
         sg.authorize_ingress(
@@ -158,7 +161,7 @@ def create_security_group(ec2, vpc_id, resources):
                 "IpProtocol": "tcp",
                 "FromPort": 22,
                 "ToPort": 22,
-                "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+                "IpRanges": [{"CidrIp": allowed_ssh_cidr}]
             }]
         )
     except ClientError as e:
@@ -171,7 +174,7 @@ def create_security_group(ec2, vpc_id, resources):
                 "IpProtocol": "tcp",
                 "FromPort": 8000,
                 "ToPort": 8000,
-                "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+                "IpRanges": [{"CidrIp": allowed_api_cidr}]
             }]
         )
     except ClientError as e:

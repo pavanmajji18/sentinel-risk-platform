@@ -1,14 +1,4 @@
-# Euron (internal configuration and rules — do not commit)
-.euron/
-**/.euron/
-EURON.md
-**/EURON.md
-
-# Specs and briefs (internal assignment docs — do not commit)
-specs/
-**/specs/
-
-# Secrets
+# Secrets & Credentials
 .env
 .env.*
 !.env.example
@@ -17,7 +7,7 @@ specs/
 id_rsa*
 credentials.json
 
-# OS and editors
+# Operating System & Editors
 .DS_Store
 Thumbs.db
 .idea/
@@ -25,11 +15,11 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 
-# Logs
+# Logs & Diagnostics
 *.log
 logs/
 
-# ---- Sentinel client data (SENSITIVE — never commit) ----
+# Sensitive Data Exclusions
 sentinel_data/
 sentinel_data.zip
 documents/
@@ -38,10 +28,15 @@ data/
 *.csv
 *.parquet
 *.jsonl
-Sentinel Documents/
-compliance-audit.md
+*.npz
 
-# ---- Trained models (regenerated from data) ----
+# Trained Models & Binary Artifacts
+04-model-training/model/*.json
+!04-model-training/model/.gitkeep
+05-model-serving/model/*.json
+!05-model-serving/model/.gitkeep
+05-model-serving/app/model/*.json
+!05-model-serving/app/model/.gitkeep
 *.pkl
 *.pkl.gz
 *.joblib
@@ -52,7 +47,7 @@ compliance-audit.md
 model_*.gz
 *.json.gz
 
-# ---- Terraform state (contains secrets & resource IDs) ----
+# Terraform State & Lock Files
 *.tfstate
 *.tfstate.backup
 *.tfstate.*
@@ -61,10 +56,11 @@ model_*.gz
 *.tfvars
 !*.tfvars.example
 
-# ---- Python cache & virtualenvs ----
+# Python Cache & Virtual Environments
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
 venv/
 .venv/
 env/

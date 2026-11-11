@@ -4,19 +4,27 @@ resource "aws_iam_group" "sentinel" {
 }
 
 data "aws_iam_policy_document" "sentinel_least_privilege" {
-  # EC2: run, terminate, describe instances, manage security groups / subnets / VPC
+  # EC2 Read-Only
   statement {
-    sid = "SentinelEC2Manage"
+    sid = "SentinelEC2ReadOnly"
     actions = [
-      "ec2:RunInstances",
-      "ec2:TerminateInstances",
       "ec2:DescribeInstances",
       "ec2:DescribeSecurityGroups",
       "ec2:DescribeSubnets",
       "ec2:DescribeVpcs",
       "ec2:DescribeInternetGateways",
       "ec2:DescribeLaunchTemplates",
-      "ec2:DescribeImages",
+      "ec2:DescribeImages"
+    ]
+    resources = ["*"]
+  }
+
+  # EC2 Mutating (run, terminate, security groups)
+  statement {
+    sid = "SentinelEC2Mutate"
+    actions = [
+      "ec2:RunInstances",
+      "ec2:TerminateInstances",
       "ec2:CreateTags",
       "ec2:CreateSecurityGroup",
       "ec2:AuthorizeSecurityGroupIngress",
@@ -47,9 +55,20 @@ data "aws_iam_policy_document" "sentinel_least_privilege" {
     resources = ["*"]
   }
 
-  # ALB
+  # ALB Read-Only
   statement {
-    sid = "SentinelALBManage"
+    sid = "SentinelALBReadOnly"
+    actions = [
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetHealth"
+    ]
+    resources = ["*"]
+  }
+
+  # ALB Mutating
+  statement {
+    sid = "SentinelALBMutate"
     actions = [
       "elasticloadbalancing:CreateLoadBalancer",
       "elasticloadbalancing:DeleteLoadBalancer",
@@ -57,9 +76,6 @@ data "aws_iam_policy_document" "sentinel_least_privilege" {
       "elasticloadbalancing:DeleteTargetGroup",
       "elasticloadbalancing:RegisterTargets",
       "elasticloadbalancing:DeregisterTargets",
-      "elasticloadbalancing:DescribeLoadBalancers",
-      "elasticloadbalancing:DescribeTargetGroups",
-      "elasticloadbalancing:DescribeTargetHealth",
       "elasticloadbalancing:ModifyTargetGroup",
       "elasticloadbalancing:ModifyLoadBalancerAttributes",
       "elasticloadbalancing:AddTags",

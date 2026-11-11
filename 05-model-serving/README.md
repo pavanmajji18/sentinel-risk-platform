@@ -51,7 +51,7 @@ Performs real-time fraud scoring for an individual transaction event. Requires `
 **Request:**
 ```bash
 curl -X POST http://localhost:8000/predict \
-  -H "X-API-Key: sentinel-prod-key-xyz" \
+  -H "X-API-Key: your_api_key_here" \
   -H "Content-Type: application/json" \
   -d '{
     "amount": 2500.0,
@@ -97,6 +97,13 @@ Processes up to 100 transaction events in a single HTTP request, aggregating tot
 
 ## Local Development & Containerization
 
+### Prerequisites: Model Artifact Generation
+Before serving with a trained model, run the training pipeline in Module 04:
+```bash
+python 04-model-training/train.py
+```
+*(If started without a trained model, the service gracefully runs in deterministic feature-weighted fallback mode.)*
+
 ### Running with Docker (Isolated, Non-Root)
 The Docker image is built using a multi-stage Python 3.11-slim container with an unprivileged `appuser`. Model artifacts are mounted as read-only volumes at runtime:
 
@@ -105,7 +112,7 @@ cd app
 docker build -t sentinel-serving .
 docker run -d --name sentinel-serving \
   -p 8000:8000 \
-  -e SENTINEL_API_KEY="sentinel-prod-key-xyz" \
+  -e SENTINEL_API_KEY="your_api_key_here" \
   -v "$(pwd)/model:/app/model:ro" \
   sentinel-serving
 ```
