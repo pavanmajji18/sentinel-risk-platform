@@ -1,0 +1,38 @@
+# Secrets
+.env
+.env.*
+!.env.example
+GCP_CREDENTIALS_PATH
+credentials.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.env/
+dist/
+build/
+
+# Terraform state (never commit)
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Trained models
+*.pkl
+*.pkl.gz

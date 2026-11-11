@@ -1,0 +1,23 @@
+What to build
+Class: Terraform in Local and AWS (International Student Class).
+
+OBJECTIVE
+
+Write a small SENTINEL transaction-risk API and manage its Docker container entirely with Terraform on your own machine.
+
+WHAT TO BUILD
+
+1
+A FastAPI app in app/main.py with GET /health and POST /score. /score takes a transaction (amount, customer average amount over 90 days, is_new_device, distance in km, hour of day, failed attempts) and returns a risk score plus the reason codes that fire (R01 new device, R02 geo mismatch, R03 odd hours, R04 failed attempts, R05 amount spike, R06 new account). Simple rules are fine for this task.
+
+2
+app/requirements.txt and a Dockerfile. Run it once with uvicorn main:app --reload and open /docs.
+
+3
+Modular Terraform with the kreuzwerker/docker provider: version.tf (Terraform >= 1.5), provider.tf, variable.tf (project_name, environment default "dev", internal_port, external_port with a validation block for 1024 to 65535), terraform.tfvars, local.tf (container_name, image_name, application_url), main.tf (docker_image with build triggers on app/ and the Dockerfile, docker_container) and outputs.tf (container_id, api_url, swagger_url, health_url).
+
+4
+Run terraform init, fmt, validate, plan, apply. Call /score with three test transactions (one clean, two risky) and show the reason codes.
+
+5
+Change one line of the app, apply again and show the image rebuild. Finish with terraform destroy.

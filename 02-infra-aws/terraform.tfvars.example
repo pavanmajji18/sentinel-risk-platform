@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars — it is listed in .gitignore.
+aws_region     = "us-east-1"
+instance_type  = "t3.micro"
+instance_count = 1
+# Restrict SSH access to your own IP for security.
+# Find yours: curl https://checkip.amazonaws.com
+allowed_cidr_blocks = ["YOUR_IP/32"]
+

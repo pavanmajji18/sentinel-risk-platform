@@ -1,0 +1,32 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- Virtual environments ----
+venv/
+.env/
+env/
+
+# ---- Sentinel client data ----
+sentinel_data/
+documents/
+config_changes/
+*.csv
+*.parquet
+
+# ---- Trained models (commit only final production model) ----
+model_*.pkl
+model_*.pkl.gz
+
+# ---- Environment files ----
+.env
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.swp
+
+# ---- OS ----
+.DS_Store
+Thumbs.db

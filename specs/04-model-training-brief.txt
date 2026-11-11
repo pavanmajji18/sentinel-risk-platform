@@ -1,0 +1,26 @@
+What to build
+Class: Project Work (training and testing the model for SENTINEL).
+
+OBJECTIVE
+
+Every fine-tuned model in SENTINEL has to beat the client XGBoost baseline to get a go decision. Build that baseline yourself and measure it honestly.
+
+WHAT TO BUILD
+
+1
+Load transactions, labels and features. Use the SENTINEL data from Project Work 4 and 5: your own Supabase load (sql/create_table.sql, then python ingest.py all) or the files shared in your dashboard.
+
+2
+Respect time: train on the train split, tune on validation, report once on holdout. Use label_available_at so that no label is used before it would have been known (no future leakage). Explain this in the README.
+
+3
+Features: at least amount_to_average_ratio over 90 days, is_new_device, customer_merchant_distance_km, is_night, transaction_count_last_1_hour and transaction_amount_last_24_hours, plus any you add.
+
+4
+Train XGBoost with class imbalance handled (scale_pos_weight or sampling). Compare against a simple rules baseline built from the reason codes R01 to R06.
+
+5
+Report precision, recall, F1, PR-AUC and the confusion matrix at the threshold you choose, and explain why you chose it (missed fraud vs blocked genuine customers). Add a feature importance chart.
+
+6
+Save the model file and a metrics.json so task 5 can load them.

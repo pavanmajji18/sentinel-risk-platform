@@ -1,0 +1,11 @@
+# Terraform variables example for 01-risk-api
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars — it is listed in .gitignore.
+
+project_name     = "sentinel"
+environment      = "dev"
+internal_port    = 8000
+external_port    = 8000
+container_name   = "sentinel-risk-api"
+sentinel_api_key = "REPLACE_ME_before_apply"   # generate with e.g. openssl rand -hex 32
+

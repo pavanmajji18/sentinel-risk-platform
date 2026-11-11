@@ -1,0 +1,61 @@
+# ---- Python build artifacts ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ---- Virtual environments ----
+venv/
+.env/
+env/
+.venv/
+
+# ---- Environment files (use build args or Docker secrets) ----
+.env
+.env.*
+
+# ---- Terraform (not needed inside the Docker image) ----
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tf
+.terraform.lock.hcl
+
+# ---- Sentinel data (load at runtime) ----
+sentinel_data/
+documents/
+config_changes/
+*.csv
+*.parquet
+*.jsonl
+
+# ---- Trained models (load at runtime or baked into image separately) ----
+model_*.pkl
+model_*.pkl.gz
+
+# ---- Documentation ----
+*.md
+README.md
+
+# ---- IDE / Editor ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- Git ----
+.git/
+.gitignore
+
+# ---- Docker files themselves ----
+.dockerignore
+Dockerfile
+
+# ---- Logs ----
+*.log
+logs/

@@ -1,0 +1,23 @@
+What to build
+Class: AWS, Azure and GCP service comparison.
+
+OBJECTIVE
+
+Decide where every part of SENTINEL would run on each cloud, and prove the AWS column with code.
+
+WHAT TO BUILD
+
+1
+A comparison table in the README for the SENTINEL components: compute for the API, GPU for training, object storage for the corpus, relational database, document database, vector search, cache, streaming of live transactions, managed LLMs, ML training workspace, monitoring and audit logs. For each give the AWS, Azure and GCP service (for example EC2, S3, RDS, DocumentDB, OpenSearch, ElastiCache, Kinesis, Bedrock, SageMaker, CloudWatch, CloudTrail and their equivalents) and one line on why.
+
+2
+IAM done properly: create a group with a least-privilege JSON policy that allows only what your script needs (one S3 bucket, describe EC2), add a user to it, and show that an action outside the policy is denied. Do not use AdministratorAccess.
+
+3
+A Python script with boto3 that creates an S3 bucket, uploads a sample of the SENTINEL corpus documents (RBI and NPCI guidelines, playbooks, investigator notes), lists them with their sizes, and generates a presigned download link that expires in 15 minutes.
+
+4
+A second function that lists every EC2 instance family the class covered (general purpose, compute, memory, storage, accelerated) for one region with vCPU and memory, and prints which one you would choose for the API and which for training, with the reason.
+
+5
+Clean up: delete the objects and the bucket from the script.

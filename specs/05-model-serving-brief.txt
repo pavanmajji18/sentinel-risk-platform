@@ -1,0 +1,28 @@
+What to build
+Class: Project Work (hosting the model for SENTINEL, GPU setup from Project Work 5).
+
+OBJECTIVE
+
+Serve the model from task 4 as a live API on a machine in the cloud, the way it would run for the client.
+
+WHAT TO BUILD
+
+1
+A FastAPI service that loads your saved model and exposes POST /predict (one transaction in, fraud probability, decision and the reason codes out) and GET /health. Add a POST /predict/batch for up to 100 transactions.
+
+2
+Package it in Docker with a pinned requirements.txt.
+
+3
+Spin up a VM: a Hyperstack GPU (RTX A6000, L40 or A100) as shown in Project Work 5, or an AWS EC2 instance. Set up the key pair and firewall rules, connect with PuTTY or ssh, and copy your files with WinSCP or scp. On a GPU machine, run nvidia-smi and explain what it shows.
+
+4
+Run the container on the VM and call /predict from your laptop over the public IP with five transactions from the holdout split.
+
+5
+Measure it: time 100 requests and report the average and p95 latency. Say whether this model needs a GPU for inference and why, using the training vs inference compute discussion from class.
+
+6
+Delete the VM at the end, do not just stop it.
+
+Cost: stay on the free tier where you can (t2.micro or t3.micro), and run terraform destroy or delete the VM the same day. Show in your video that nothing is left running.

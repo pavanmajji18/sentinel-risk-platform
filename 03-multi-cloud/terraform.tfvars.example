@@ -1,0 +1,4 @@
+# AWS settings for 03-multi-cloud
+# Copy to terraform.tfvars and fill in real values. NEVER commit terraform.tfvars.
+aws_region  = "us-east-1"
+bucket_name = "sentinel-corpus-main"
