@@ -1,226 +1,149 @@
-# SENTINEL Risk API
+# SENTINEL — Real-Time Risk API (Module 01)
 
-Production-grade risk-scoring API built with FastAPI. Scores financial transactions
-for fraud indicators using rule-based feature engineering and a trained XGBoost model.
+High-performance, containerized financial transaction risk-scoring service built with **FastAPI**. Evaluates payment events in real time against fifteen rule heuristics and hybrid machine learning scoring.
 
 ---
 
-## Architecture
+## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────┐
-│              Risk API (FastAPI)              │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐ │
-│  │  /score  │  │/score-   │  │/model-    │ │
-│  │          │  │ batch    │  │ info      │ │
-│  └────┬─────┘  └────┬─────┘  └────┬──────┘ │
-│       │              │             │         │
-│       ▼              ▼             ▼         │
-│  ┌─────────────────────────────────────────┐ │
-│  │         Risk Scoring Engine             │ │
-│  │  • Velocity scoring                     │ │
-│  │  • Amount classification                │ │
-│  │  • Frequency analysis                   │ │
-│  │  • Cross-entity correlation             │ │
-│  │  • Rule-based flagging                  │ │
-│  └─────────────────────────────────────────┘ │
-│       │                                      │
-│       ▼                                      │
-│  ┌─────────────────────────────────────────┐ │
-│  │     Feature Engineering Pipeline        │ │
-│  │  (sentinel_rules from Component 4)     │ │
-│  └─────────────────────────────────────────┘ │
-│       │                                      │
-│       ▼                                      │
-│  ┌─────────────────────────────────────────┐ │
-│  │       XGBoost Model (ONNX)              │ │
-│  │  (trained in Component 4)               │ │
-│  └─────────────────────────────────────────┘ │
-│                                             │
-└─────────────────────────────────────────────┘
+                      Inbound Client Request
+                                │
+                        [ X-API-Key Auth ]
+                                │
+              ┌─────────────────┴─────────────────┐
+              ▼                                   ▼
+      POST /v1/score                      POST /v2/score
+   (Deterministic Rules)               (Hybrid Rule + ML)
+              │                                   │
+              ▼                                   ▼
+   15 Evaluation Heuristics            Rule Engine + Model Score
+   • High Velocity (R01, R10)         Weighted Aggregation
+   • Geographic Jump (R02)             Decision Banding
+   • Night Window (R03)                           │
+   • Failed Attempts (R04)                        │
+   • Ratio to 90d Avg (R05, R06)                  │
+              │                                   │
+              └─────────────────┬─────────────────┘
+                                ▼
+                       Structured Response
+                { score, band, rules_triggered }
 ```
+
+---
+
+## Detection Heuristics & Rules Engine
+
+The scoring engine evaluates transactions against fifteen codified detection rules:
+
+| Rule Code | Description | Weight | Trigger Condition |
+| :--- | :--- | :--- | :--- |
+| **FR01** | High Velocity Burst | `0.15` | Transaction count in 1h $\ge$ 5 |
+| **FR02** | Rapid Cumulative Spend | `0.10` | 24-hour spend $> 5\times$ historical 90-day average |
+| **FR03** | Frequent Small Testing | `0.10` | $\ge 3$ transactions in 1h with amount $< 100$ |
+| **FR04** | Dormant Account Awakening | `0.15` | High spend after $> 72$ hours of inactivity |
+| **R01** | Untrusted Device | `0.12` | First transaction observed from new device |
+| **R02** | Geolocation Discrepancy | `0.10` | Distance from primary location $> 100$ km |
+| **R03** | Off-Hours Activity | `0.08` | Transaction occurring between 22:00 and 06:00 |
+| **R04** | Authentication Failures | `0.15` | $\ge 3$ prior failed authentication attempts |
+| **R05** | Baseline Spend Outlier | `0.10` | Current amount $> 3\times$ customer 90-day average |
+| **R06** | New Profile High Value | `0.15` | High transaction value on profile with no 90-day history |
+| **R10** | High-Velocity Micro-Charge | `0.12` | Velocity burst combined with low nominal amounts |
+| **R11** | High-Value Night Transaction | `0.10` | Transaction value $> 10,000$ in late-night window |
+| **R12** | Distant New Device | `0.15` | Unrecognized device paired with distance $> 100$ km |
+| **R13** | Rapid Retry Burst | `0.10` | Repeat transactions within seconds of authentication failure |
+| **R14** | Critical Risk Factor Cluster | `0.18` | Simultaneous trigger of $\ge 4$ independent risk rules |
+
+### Decision Banding
+* **Safe (`0.0 - 0.20`):** Low risk profile, approved automatically.
+* **Monitor (`0.20 - 0.50`):** Elevated risk; queued for operational monitoring or step-up authentication.
+* **Block (`> 0.50`):** High-confidence risk; transaction rejected immediately.
+
+---
 
 ## API Endpoints
 
-### POST `/score`
-Score a single transaction for risk indicators.
+### 1. `GET /health`
+System health check and active rule count (unauthenticated).
 
-**Request Body:**
 ```json
 {
-  "amount": 1500.00,
-  "timestamp": "2024-12-15T10:30:00Z",
-  "entity_id": "user_123"
+  "status": "healthy",
+  "rules_loaded": 15
 }
 ```
 
-**Response:**
-```json
-{
-  "risk_score": 0.85,
-  "risk_category": "high",
-  "factors": ["velocity", "amount"],
-  "confidence": 0.92
-}
-```
+### 2. `POST /v1/score`
+Evaluate a transaction using deterministic rule engine. Requires `X-API-Key` header.
 
-### POST `/score-batch`
-Score multiple transactions in a single request.
-
-**Request Body:**
-```json
-{
-  "transactions": [
-    {"amount": 1500.00, "timestamp": "...", "entity_id": "user_123"},
-    {"amount": 450.00, "timestamp": "...", "entity_id": "user_456"}
-  ]
-}
-```
-
-**Response:**
-```json
-{
-  "results": [...],
-  "summary": {
-    "total_scored": 2,
-    "high_risk": 1,
-    "medium_risk": 1,
-    "low_risk": 0
-  }
-}
-```
-
-### GET `/model-info`
-Retrieve metadata about the loaded model (version, type, training date).
-
-### GET `/health`
-Service health check returning status and uptime.
-
-### GET `/hash/{file}`
-Verify SHA-256 integrity of a data or model file.
-
----
-
-## Implementation Details
-
-### Risk Scoring Logic
-
-The risk engine evaluates transactions across four dimensions:
-
-1. **Velocity Score:** Measures the rate of transactions within rolling time windows.
-   High velocity (many transactions in short periods) indicates potential fraud.
-
-2. **Amount Classification:** Categorises transaction amounts into thresholds:
-   - Small: under normal transaction range
-   - Medium: within expected range
-   - Large: above typical thresholds (higher risk weight)
-
-3. **Frequency Analysis:** Counts and sums transactions over multiple time horizons
-   (short-term, medium-term, long-term) to detect anomalous patterns.
-
-4. **Cross-Entity Correlation:** Identifies linked entities with correlated suspicious
-   activity patterns, flagging coordinated fraud rings.
-
-### Data Integrity
-
-All data files and model artifacts are verified using SHA-256 hashing. The `/hash/`
-endpoint provides on-demand integrity checks, ensuring no tampering with model weights
-or training data.
-
-### Model Loading
-
-The FastAPI application loads the XGBoost model (exported as ONNX) at startup. The
-model is trained using the pipeline in Component 4 (`04-model-training/`).
-
----
-
-## Local Development
-
-### Prerequisites
-- Python 3.10+
-- Docker & Docker Compose
-
-### Run with Docker
-
+**Request:**
 ```bash
-docker-compose up --build
-```
-
-The API will be available at `http://localhost:8000`.
-
-### Run Locally (No Docker)
-
-```bash
-cd app
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-### Test Endpoints
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Score a transaction
-curl -X POST http://localhost:8000/score \
+curl -X POST http://localhost:8000/v1/score \
+  -H "X-API-Key: sentinel-secret-key-prod" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 1500.00, "timestamp": "2024-12-15T10:30:00Z", "entity_id": "user_123"}'
-
-# Get model info
-curl http://localhost:8000/model-info
+  -d '{
+    "amount": 25000.0,
+    "customer_id": "cust_mock_001",
+    "merchant_id": "merch_mock_99",
+    "device_id": "dev_mock_alpha",
+    "amount_to_avg_ratio": 4.5,
+    "is_night": 1,
+    "is_new_device": 1,
+    "distance_km": 250.0,
+    "failed_attempts": 3,
+    "txn_count_1h": 6,
+    "txn_amount_24h": 75000.0,
+    "time_since_last_txn": 80.0,
+    "account_age_days": 180
+  }'
 ```
+
+**Response:**
+```json
+{
+  "transaction_id": "tx_20261111183000_a1b2",
+  "score": 0.88,
+  "band": "Block",
+  "rules_triggered": ["FR01", "FR02", "FR04", "R01", "R02", "R03", "R04", "R05", "R12", "R14"],
+  "decision": "BLOCK",
+  "latency_ms": 1.25
+}
+```
+
+### 3. `POST /v2/score`
+Hybrid evaluation combining deterministic rule weights with statistical machine learning inference.
+
+### 4. `GET /hash/{filename}`
+Cryptographic SHA-256 integrity verification for local configuration and rule files.
 
 ---
 
-## AWS Deployment
+## Local Development & Testing
 
-This component includes a Terraform configuration (`main.tf`) for deploying to AWS:
-
-- **S3 Bucket:** Stores model artifacts and data files
-- **IAM Policy:** Grants minimal read permissions for data access
-
+### Running with Docker Compose
 ```bash
-terraform init
-terraform plan -var="environment=production"
-terraform apply -var="environment=production"
+docker compose up --build
 ```
 
----
+### Running Locally with Python Virtual Environment
+```bash
+# Setup virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Or on Windows: .venv\Scripts\activate
 
-## Configuration
+# Install dependencies
+pip install -r app/requirements.txt
 
-Environment variables (set via `.env` or cloud configuration):
+# Set local API key
+export SENTINEL_API_KEY="sentinel-secret-key-prod"
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATA_DIR` | Path to transaction data | `./data` |
-| `MODEL_PATH` | Path to trained model file | `./model.onnx` |
-| `SECRET_KEY` | API signing key | (required) |
-
----
-
-## File Structure
-
-```
-01-risk-api/
-├── README.md                 # This file
-├── main.tf                   # Terraform (S3 + IAM)
-└── app/
-    ├── README.md             # Application documentation
-    ├── main.py               # FastAPI application (scoring engine)
-    └── requirements.txt      # Python dependencies
+# Start service
+cd app
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-## Sentinel Data Integration
-
-The Risk API consumes the Sentinel transaction dataset. Feature engineering is
-handled by the rule-based pipeline defined in `sentinel_rules.py` (Component 4),
-which transforms raw transaction data into risk-relevant features before model
-inference.
-
----
-
-See the top-level [README.md](../README.md) for the full platform architecture.
+### Automated Validation Suite
+Execute the comprehensive test suite validating endpoints, authentication, and boundary risk bands:
+```bash
+python validate_module01.py
+```

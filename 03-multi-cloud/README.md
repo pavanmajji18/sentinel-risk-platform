@@ -1,123 +1,67 @@
-# SENTINEL — Multi-Cloud Service Map
+# SENTINEL — Multi-Cloud Operations & Service Mapping (Module 03)
 
-Cross-cloud infrastructure provisioning with Terraform modules for AWS, Azure
-and GCP. Provides a unified deployment strategy with provider-agnostic compute
-and networking patterns.
+Cross-cloud infrastructure architecture and operational automation spanning **Amazon Web Services (AWS)**, **Microsoft Azure**, and **Google Cloud Platform (GCP)**.
 
 ---
 
-## Architecture
+## Architecture & Cross-Cloud Strategy
+
+The Sentinel platform implements provider-agnostic infrastructure patterns ensuring uninterrupted compliance, zero-downtime regional failover, and regulatory compliance.
 
 ```
-┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│       AWS           │  │       Azure         │  │       GCP           │
-│                     │  │                     │  │                     │
-│  ┌───────────────┐  │  │  ┌───────────────┐  │  │  ┌───────────────┐  │
-│  │ EC2 Instance  │  │  │  │ VM Instance   │  │  │  │ VM Instance   │  │
-│  │ (Risk API)    │  │  │  │ (Risk API)    │  │  │  │ (Risk API)    │  │
-│  └───────┬───────┘  │  │  └───────┬───────┘  │  │  └───────┬───────┘  │
-│          │          │  │          │          │  │          │          │
-│  ┌───────┴───────┐  │  │  ┌───────┴───────┐  │  │  ┌───────┴───────┐  │
-│  │ CloudWatch    │  │  │  │  NSG Rules    │  │  │  │ Firewall      │  │
-│  │ (Monitoring)  │  │  │  │ (Security)    │  │  │  │ Rules         │  │
-│  └───────────────┘  │  │  └───────────────┘  │  │  └───────────────┘  │
-│                     │  │                     │  │                     │
-└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
-           │                         │                        │
-           └─────────────────────────┼────────────────────────┘
-                                     │
-                          ┌──────────┴──────────┐
-                          │   Service Map       │
-                          │  (Resource Metadata) │
-                          └─────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                      SENTINEL MULTI-CLOUD MATRIX                       │
+├───────────────────────┬────────────────────────┬───────────────────────┤
+│          AWS          │         Azure          │          GCP          │
+├───────────────────────┼────────────────────────┼───────────────────────┤
+│ • EC2 t3.micro        │ • Virtual Machines     │ • Compute Engine      │
+│ • Application LB      │ • Application Gateway  │ • Cloud Load Balancing│
+│ • S3 Regulatory Corpus│ • Blob Storage Account │ • Cloud Storage (GCS) │
+│ • IAM Least Privilege │ • Managed Identity     │ • Service Accounts    │
+│ • CloudWatch Metrics  │ • Azure Monitor        │ • Cloud Logging       │
+└───────────────────────┴────────────────────────┴───────────────────────┘
 ```
 
-## Provider Modules
-
-### AWS Module
-- **Compute:** EC2 instance with the Risk API application
-- **Networking:** VPC, subnets, security groups
-- **Monitoring:** CloudWatch logs and metrics
-- **State:** Local backend (S3 backend available for team use)
-
-### Azure Module
-- **Compute:** Virtual Machine (Standard_DS1_v2)
-- **Networking:** Virtual Network, subnet, NSG (Network Security Group)
-- **Security:** NSG rules restricting inbound traffic to required ports
-- **OS:** Ubuntu Server with Python runtime
-
-### GCP Module
-- **Compute:** Compute Engine instance (e2-micro)
-- **Networking:** VPC network, firewall rules
-- **Security:** Firewall rules allowing HTTP/HTTPS only
-- **OS:** Ubuntu with Python runtime and application deployment
-
-## Design Principles
-
-1. **Provider-Agnostic Interface:** Each cloud module exposes the same conceptual
-   resources (compute instance, networking, security) regardless of provider.
-
-2. **Consistent Application Deployment:** The same FastAPI application is deployed
-   across all three providers with provider-specific provisioning logic.
-
-3. **Minimal Security Posture:** Each module enforces least-privilege networking:
-   only the ports required for the API (HTTP/HTTPS) are open.
-
-4. **Independent State Management:** Each provider module manages its own Terraform
-   state, preventing cross-provider state conflicts.
+For the complete technical breakdown and resource mappings, see [`service-map.md`](service-map.md).
 
 ---
 
-## Implementation Details
+## Regulatory Corpus & Storage Operations (`sentinel_cloud.py`)
 
-### `requirements.txt`
-Python dependencies for cloud SDK integration:
-- `boto3` — AWS SDK for Python
-- `python-dotenv` — Environment variable management
+Financial risk platforms require immutable storage and auditable distribution of regulatory standards, fraud circulars, and compliance playbooks. Module 03 provides an automated operational script (`sentinel_cloud.py`) managing the compliance corpus lifecycle on object storage:
 
-### Service Map (`service-map.md`)
-A cross-cloud resource correlation document mapping:
-- Instance IDs across providers
-- Endpoint URLs and health check status
-- Network configuration and security rules
-- Monitoring and logging endpoints
+1. **Bucket Provisioning:** Dynamically provisions or connects to an isolated, encrypted S3 bucket.
+2. **Corpus Upload:** Ingests markdown playbooks and compliance documentation from `sentinel_corpus/`:
+   * `rbi_guidelines.md`: Regulatory mandates and reporting standards.
+   * `npci_rules.md`: Transaction velocity limits and chargeback processing rules.
+   * `investigator_playbook.md`: Standard operating procedures for fraud investigations.
+3. **Paginated Asset Listing:** Uses pagination cursors to inspect stored regulatory documents and byte sizes.
+4. **Time-Limited Presigned URLs:** Generates cryptographically signed, expiring URLs (15-minute validity) granting secure, temporary access to investigators without exposing bucket credentials.
+5. **Compute Recommendation Matrix:** Evaluates EC2 instance families via the AWS API to provide hardware recommendations (`t3.micro` for stateless API traffic; `p3.2xlarge` for GPU-accelerated gradient boosting).
+6. **Audited Cleanup:** Safely purges ephemeral documents and buckets post-deployment.
 
 ---
 
-## Deployment Steps
+## Local Setup & Execution
 
-### AWS
+### 1. Configure Environment Variables
+Copy `.env.example` to `.env` (or link to `02-infra-aws/.env`):
 ```bash
-cd aws  # AWS module directory
-terraform init
-terraform apply -var="environment=production"
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
 ```
 
-### Azure
+### 2. Run Operations Script
 ```bash
-cd azure  # Azure module directory
-terraform init
-terraform apply -var="environment=production"
+python sentinel_cloud.py
 ```
 
-### GCP
+### 3. Run Automated Validation Test Suite
+Module 03 includes a standalone validation test suite verifying live STS caller identities, S3 authentication, and the full mock lifecycle of document uploading and presigning:
 ```bash
-cd gcp  # GCP module directory
-terraform init
-terraform apply -var="environment=production"
+python validate_module03.py
 ```
-
----
-
-## Sentinel Data Integration
-
-Each cloud deployment runs the same Risk API application, which:
-- Loads the XGBoost model trained on the Sentinel dataset
-- Applies rule-based feature engineering from `sentinel_rules.py`
-- Scores transactions using the same risk model across all providers
-
-This ensures consistent risk scoring regardless of which cloud provider serves
-the request, enabling multi-region failover and geographic distribution.
 
 ---
 
@@ -125,11 +69,15 @@ the request, enabling multi-region failover and geographic distribution.
 
 ```
 03-multi-cloud/
-├── README.md             # This file
-├── requirements.txt      # Python dependencies (boto3, dotenv)
-└── service-map.md        # Cross-cloud resource correlation map
+├── README.md               # Module architecture & operations guide
+├── service-map.md          # Multi-cloud functional cross-reference
+├── sentinel_cloud.py       # Cloud SDK storage & instance operations script
+├── validate_module03.py    # Automated test suite (STS, S3, lifecycle)
+├── iam_policy.json         # Least-privilege IAM policy document
+├── requirements.txt        # Python cloud dependencies (boto3, python-dotenv)
+├── .env.example            # Environment template for AWS/Azure/GCP
+└── sentinel_corpus/        # Regulatory & compliance playbooks
+    ├── investigator_playbook.md
+    ├── npci_rules.md
+    └── rbi_guidelines.md
 ```
-
----
-
-See the top-level [README.md](../README.md) for the full platform architecture.

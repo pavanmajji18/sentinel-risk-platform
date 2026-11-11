@@ -1,326 +1,262 @@
 # SENTINEL — Financial Risk & ML Platform
 
-Production-grade fraud-detection platform for the gaming and financial technology sector.
-Builds a risk-scoring API, deploys it across AWS, Azure and GCP, trains an XGBoost model
-on real client transaction data, and serves predictions on GPU-accelerated infrastructure.
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Terraform](https://img.shields.io/badge/Terraform-1.5+-844FBA?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-Infrastructure-232F3E?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-EB5424)](https://xgboost.readthedocs.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Five interconnected components form a complete MLOps pipeline from data to deployment:
-
-| Component | Folder | Purpose |
-|-----------|--------|---------|
-| Risk API | `01-risk-api/` | FastAPI service with rule-based risk scoring and local Docker deployment |
-| AWS Infra | `02-infra-aws/` | Terraform-only AWS provisioning: VPC, EC2, ALB, IAM, S3 |
-| Multi-Cloud | `03-multi-cloud/` | Cross-cloud service map with Terraform modules for AWS, Azure and GCP |
-| Model Training | `04-model-training/` | XGBoost baseline trained on Sentinel transaction dataset |
-| Model Serving | `05-model-serving/` | GPU cloud VM model serving with Terraform and health monitoring |
+An enterprise-grade financial risk scoring and fraud detection platform. **Sentinel** integrates real-time heuristic rule evaluation, gradient-boosted machine learning inference, declarative multi-cloud infrastructure provisioning, and containerized deployment automation.
 
 ---
 
-## System Architecture
+## Executive Architecture & System Overview
 
-### High-Level Design
+Sentinel bridges the gap between streaming payment event analysis and automated cloud infrastructure management. Designed for financial technology and gaming platforms handling high-velocity transactions, the platform combines low-latency deterministic rules with an **XGBoost** model trained on sequential transaction histories.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         SENTINEL Platform                           │
-├──────────────┬──────────────┬──────────────┬────────────┬──────────┤
-│  Risk API    │  AWS Infra   │  Multi-Cloud │ Model Train│ Model    │
-│  (FastAPI)   │  (Terraform) │  (3 Clouds)  │ (XGBoost)  │ Serving  │
-│              │              │              │            │ (GPU VM) │
-├──────────────┼──────────────┼──────────────┼────────────┼──────────┤
-│ • Rule-based │ • VPC +      │ • AWS:       │ • Load &   │ • ONNX   │
-│   scoring    │   Subnets    │   EC2 + ALB  │   clean    │   export │
-│ • File       │ • IAM        │ • Azure:     │   data     │ • GPU    │
-│   integrity  │ • Security   │   VM + NSG   │ • Rule-    │   cloud  │
-│   (SHA-256)  │   Groups     │ • GCP:       │   based    │   VMs    │
-│ • Docker     │ • S3 buckets │   VM + FW    │   features │ • Health │
-│   Compose    │ • Terraform  │ • Service    │ • XGBoost  │   checks │
-│              │   State      │   map        │ • Testing  │ • Scripts│
-└──────────────┴──────────────┴──────────────┴────────────┴──────────┘
-```
+```mermaid
+flowchart TD
+    subgraph Ingestion["1. Ingestion & Risk Scoring API (Module 01)"]
+        Client["Payment Gateway / Client App"] -->|POST /v1/score| API["FastAPI Risk Service"]
+        API -->|Evaluate| Rules["15 Detection Heuristics (FR01-FR04, R01-R14)"]
+        Rules -->|Categorize| Bands["Decision Bands: Safe / Monitor / Block"]
+    end
 
-### Component Interaction Flow
+    subgraph Infrastructure["2. Cloud Infrastructure Provisioning (Modules 02 & 03)"]
+        TF["Terraform Engine"] -->|Provision| VPC["Isolated VPC & Multi-AZ Subnets"]
+        VPC --> ALB["Application Load Balancer (Port 80)"]
+        ALB --> SGs["Security Groups (Restricted Ingress)"]
+        SGs --> EC2["EC2 Compute Nodes (Port 8000)"]
+        TF --> IAM["Least-Privilege IAM Roles & Profiles"]
+        TF --> S3["Regulatory Corpus Object Storage"]
+    end
 
-1. **Data Ingestion** (`04-model-training/`): Load client transaction CSV data,
-   apply rule-based feature engineering (velocity, amount thresholds, frequency).
+    subgraph MLPipeline["3. ML Training & Temporal Validation (Module 04)"]
+        TxnStream["Transaction History Stream"] --> Split["Chronological 70/15/15 Split"]
+        Split -->|Train| XGB["XGBoost Classifier (scale_pos_weight=2.3)"]
+        Split -->|Tune| Val["Validation Threshold Tuning (0.40)"]
+        Split -->|Evaluate| Holdout["Holdout Test (PR-AUC: 0.9995 | Recall: 100%)"]
+        XGB --> Artifacts["Serialized Artifacts (model/sentinel_xgb.json)"]
+    end
 
-2. **Model Training** (`04-model-training/`): Train XGBoost classifier on engineered
-   features, validate against hold-out test set, export to ONNX format.
+    subgraph Serving["4. Real-Time Inference & GPU Serving (Module 05)"]
+        Artifacts --> ServingApp["FastAPI Serving Application"]
+        ServingApp --> Predict["POST /predict (Single Event < 5ms)"]
+        ServingApp --> BatchPredict["POST /predict/batch (Up to 100 Events)"]
+        ServingApp --> Fallback["Deterministic Fallback Engine"]
+    end
 
-3. **Risk API** (`01-risk-api/`): FastAPI service that loads the trained model,
-   exposes risk-scoring endpoints with SHA-256 file integrity verification.
-
-4. **Infrastructure** (`02-infra-aws/`, `03-multi-cloud/`): Terraform provisions
-   cloud resources (VPC, compute, networking) across AWS, Azure and GCP.
-
-5. **Model Serving** (`05-model-serving/`): GPU-accelerated cloud VMs serve
-   real-time predictions with health monitoring and deployment automation.
-
-### Data Flow
-
-```
-Client Data (CSV)
-       │
-       ▼
-┌───────────────┐     ┌───────────────┐     ┌───────────────┐
-│ Feature Eng.  │────▶│ XGBoost Train │────▶│ ONNX Export   │
-│ (sentinel     │     │ & Validate    │     │ (model.onnx)  │
-│  rules.py)    │     │ (train.py)    │     └───────────────┘
-└───────────────┘                                │
-       │                                          ▼
-       │                                 ┌─────────────────┐
-       │                                 │ Risk API        │
-       │                                 │ (FastAPI +      │
-       │                                 │  model loading) │
-       │                                 └────────┬────────┘
-       │                                          │
-       │                              ┌───────────┴───────────┐
-       │                              ▼           ▼           ▼
-       │                         ┌────────┐  ┌────────┐  ┌────────┐
-       │                         │  AWS   │  │ Azure  │  │  GCP   │
-       │                         │ EC2+ALB│  │  VM+   │  │  VM+   │
-       │                         │ S3+IAM │  │  NSG   │  │  FW    │
-       │                         └────────┘  └────────┘  └────────┘
-       │
-       ▼
-┌─────────────────┐
-│ GPU Model       │
-│ Serving (Cloud  │
-│ VM + Health     │
-│ Monitor)        │
-└─────────────────┘
+    API -.->|Hybrid v2 Score| ServingApp
 ```
 
 ---
 
-## Low-Level Design
+## Platform Capabilities Matrix
 
-### 1. Risk API (`01-risk-api/`)
-
-**Technology Stack:** Python 3.10+, FastAPI, Uvicorn, Docker, Terraform (AWS)
-
-**Core Components:**
-- **Risk Scoring Engine:** Multi-factor risk calculation considering transaction
-  velocity, amount thresholds, frequency anomalies, and cross-entity links.
-- **Feature Engineering Pipeline:** Velocity checks (count of transactions within
-  rolling time windows), amount classification (small/medium/large thresholds),
-  frequency analysis (count/sum over multiple time horizons).
-- **File Integrity:** SHA-256 hash verification for all data files and model artifacts.
-- **Rule-Based Detection:** Pre-trained model flagging with cross-entity correlation
-  and risk-factor combination scoring.
-
-**API Endpoints:**
-- `POST /score` — Score a single transaction and return risk category
-- `POST /score-batch` — Score multiple transactions in bulk
-- `GET /model-info` — Return model metadata and version
-- `GET /health` — Health check with service status
-- `GET /hash/{file}` — SHA-256 file integrity verification
-
-**Deployment:** Docker Compose for local development, Terraform for AWS EC2 + S3 deployment.
-
-### 2. AWS Infrastructure (`02-infra-aws/`)
-
-**Technology Stack:** Terraform, AWS (EC2, VPC, ALB, S3, IAM)
-
-**Core Components:**
-- **VPC Design:** Public and private subnets across multiple availability zones
-- **Compute:** EC2 instances (t3.micro) behind Application Load Balancer
-- **Storage:** S3 bucket for model artifacts and data persistence
-- **Security:** IAM roles/policies, security groups with minimal port exposure,
-  SSH key management
-- **Load Balancing:** ALB with health checks routing to EC2 instances
-
-**Security Design:**
-- Security groups restrict inbound traffic to HTTP (80) and HTTPS (443) only
-- SSH access controlled via key pairs with optional IP restrictions
-- IAM policy follows least-privilege principle (S3 read, CloudWatch logs only)
-- All sensitive configuration via environment variables, never hardcoded
-
-### 3. Multi-Cloud Service Map (`03-multi-cloud/`)
-
-**Technology Stack:** Terraform, AWS, Azure, GCP, boto3
-
-**Core Components:**
-- **AWS Module:** EC2 instance provisioned via Terraform with CloudWatch monitoring
-- **Azure Module:** Virtual machine with NSG security rules
-- **GCP Module:** Compute engine instance with firewall rules
-- **Service Mapping:** Cross-cloud resource correlation and health check integration
-
-**Design Principles:**
-- Provider-agnostic Terraform modules for consistent multi-cloud provisioning
-- Each cloud module follows the same interface pattern (compute + networking + security)
-- Service map aggregates resource metadata across all three providers
-
-### 4. Model Training (`04-model-training/`)
-
-**Technology Stack:** Python 3.10+, XGBoost, scikit-learn, pandas, numpy
-
-**Core Components:**
-- **Sentinel Rules Engine:** Rule-based feature extraction from transaction data:
-  - Velocity features (transaction count within time windows)
-  - Amount classification (threshold-based categorization)
-  - Frequency features (count and sum over multiple time horizons)
-  - Cross-entity risk correlation
-- **XGBoost Pipeline:** Model training with stratified train/test split,
-  early stopping, and hyperparameter tuning
-- **Testing Framework:** Agreement-based validation comparing rule predictions
-  against model predictions
-
-**Feature Engineering:**
-- `velocity_score`: Transaction velocity within defined time windows
-- `amount_class`: Categorical amount classification (small/medium/large)
-- `frequency_high`, `frequency_med`, `frequency_low`: Multi-horizon frequency scores
-- `cross_entity_risk`: Cross-entity correlation risk factor
-- `risk_factor`: Combined risk score from all features
-
-### 5. Model Serving (`05-model-serving/`)
-
-**Technology Stack:** Terraform, FastAPI, ONNX Runtime, GPU cloud VMs
-
-**Core Components:**
-- **GPU VM Provisioning:** Terraform-configured cloud VMs with GPU acceleration
-  for real-time inference
-- **ONNX Serving:** Model exported to ONNX format for cross-platform compatibility
-  and hardware acceleration
-- **Health Monitoring:** Automated health checks with endpoint verification
-- **Deployment Automation:** Shell scripts for automated model deployment to GPU instances
-- **Multi-Provider Support:** Configurable for AWS, Azure or GCP GPU instances
-
-**Deployment Pipeline:**
-1. Train model locally (Component 4)
-2. Export to ONNX format
-3. Provision GPU VM via Terraform
-4. Deploy model artifact via automated script
-5. Verify health endpoints and model readiness
+| Module | Core Responsibility | Key Technologies | Validation Status |
+| :--- | :--- | :--- | :---: |
+| [**01-risk-api**](01-risk-api/README.md) | Real-time rule evaluation (15 heuristics), decision banding (`Safe`, `Monitor`, `Block`), SHA-256 file hashing | FastAPI, Pydantic, Uvicorn, Docker | **100% Passed (6/6)** |
+| [**02-infra-aws**](02-infra-aws/README.md) | Multi-AZ VPC, ALB load balancing, EC2 container bootstrap, least-privilege IAM policies | Terraform, AWS (VPC, EC2, ALB, IAM) | **Planned (22 Resources)** |
+| [**03-multi-cloud**](03-multi-cloud/README.md) | Cross-cloud service mapping, compliance corpus storage, expiring presigned URL generation | Boto3, AWS S3/EC2, Azure/GCP Service Maps | **100% Passed (3/3)** |
+| [**04-model-training**](04-model-training/README.md) | Temporal 70/15/15 split, gradient boosting with imbalance weighting, PR-AUC holdout evaluation | XGBoost, scikit-learn, pandas, NumPy | **PR-AUC: 0.9995** |
+| [**05-model-serving**](05-model-serving/README.md) | Low-latency inference serving, batch prediction, GPU VM provisioning, automated teardown | FastAPI, XGBoost runtime, Boto3, Docker | **100% Passed (5/5)** |
 
 ---
 
-## Quick Start
+## Machine Learning & Benchmark Metrics
 
-### Prerequisites
-- Python 3.10+
-- Docker & Docker Compose
-- Terraform 1.0+
-- Cloud provider accounts (AWS, Azure, GCP) for deployment
+Financial transaction fraud requires specialized handling of sequential data and extreme class imbalance. Sentinel enforces a strict **chronological train/validation/holdout split (70/15/15)** to eliminate future label leakage.
 
-### Local Development
+```
+Chronological Sequence:
+[======================= Train (70%) =======================][==== Val (15%) ====][=== Holdout (15%) ===]
+                     Gradient Optimization                     Threshold Tuning        Simulated Production
+```
 
+### Holdout Evaluation vs. Static Rules Baseline
+
+On a held-out test set evaluated exactly once, the trained XGBoost model significantly outperforms static rule heuristics:
+
+| Metric | XGBoost Model (Threshold: 0.40) | Heuristic Rules Baseline | Impact Analysis |
+| :--- | :---: | :---: | :--- |
+| **PR-AUC** | **0.9995** | — | High class separation under imbalance |
+| **Accuracy** | **99.73%** | 86.00% | Eliminates heuristic false alarms |
+| **Precision** | **98.77%** | 100.00% | Minimizes genuine customer purchase friction |
+| **Recall** | **100.00%** | 28.57% | **Catches 100% of holdout fraud (0 false negatives)** |
+| **F1 Score** | **0.9938** | 0.4444 | Robust operational balance |
+
+---
+
+## Sanitized Project Structure
+
+```
+sentinel-risk-platform/
+├── LICENSE                          # Standard MIT open-source license
+├── README.md                        # Platform documentation & portfolio showcase
+├── .gitignore                       # Multi-tier exclusion for secrets, state & raw data
+├── 01-risk-api/                     # Real-time transaction scoring service
+│   ├── README.md                    # Module architecture & endpoint specs
+│   ├── validate_module01.py         # Automated API validation test suite
+│   ├── main.tf                      # Local container orchestration with Terraform
+│   └── app/
+│       ├── main.py                  # FastAPI implementation (15 risk rules)
+│       ├── Dockerfile               # Production container definition
+│       └── requirements.txt         # Pinned API dependencies
+├── 02-infra-aws/                    # AWS production cloud infrastructure
+│   ├── README.md                    # Infrastructure topology & deployment guide
+│   ├── alb.tf                       # Application Load Balancer & health probes
+│   ├── compute.tf                   # EC2 compute, user data & AMI selection
+│   ├── vpc.tf                       # Multi-AZ VPC, subnets & route tables
+│   ├── security.tf                  # Layered security groups & IAM roles
+│   ├── variable.tf                  # Infrastructure parameters & AMI override
+│   ├── outputs.tf                   # ALB endpoint & generated API key outputs
+│   ├── terraform.tfvars.example     # Non-sensitive variables template
+│   └── .env.example                 # Cloud credentials template
+├── 03-multi-cloud/                  # Multi-cloud mapping & compliance corpus
+│   ├── README.md                    # Multi-cloud architecture guide
+│   ├── service-map.md               # AWS, Azure & GCP cross-cloud service map
+│   ├── sentinel_cloud.py            # S3 corpus & EC2 family operations script
+│   ├── validate_module03.py         # Automated STS & corpus lifecycle suite
+│   ├── requirements.txt             # Cloud SDK dependencies (boto3)
+│   └── sentinel_corpus/             # Regulatory standards & investigator playbooks
+├── 04-model-training/               # Machine learning engineering pipeline
+│   ├── README.md                    # Model training methodology & leakage prevention
+│   ├── train.py                     # Training pipeline & holdout evaluation
+│   ├── test_model.py                # Model vs. rules benchmark runner
+│   ├── sentinel_data.py             # Feature engineering & temporal split
+│   ├── sentinel_model.py            # XGBoost wrapper with PR-AUC metric
+│   ├── sentinel_rules.py            # Heuristic rules engine baseline
+│   ├── data/generate_data.py        # Synthetic transaction dataset generator
+│   └── model/
+│       ├── sentinel_xgb.json        # Serialized gradient boosted model
+│       └── metrics.json             # Model metadata & tuned threshold
+└── 05-model-serving/                # Model inference & cloud deployment
+    ├── README.md                    # Serving architecture & latency discussion
+    ├── validate_module05.py         # Automated serving validation test suite
+    ├── sentinel_deploy.py           # Automated cloud deployment script (--dry-run)
+    ├── main.tf                      # GPU VM cloud infrastructure
+    └── app/
+        ├── main.py                  # Serving FastAPI app (single & batch)
+        ├── Dockerfile               # Multi-stage non-root container definition
+        └── requirements.txt         # Inference server dependencies
+```
+
+---
+
+## Quickstart & Local Setup
+
+### 1. Prerequisites
+* **Python 3.10+** (tested on 3.11)
+* **Docker & Docker Compose**
+* **Terraform 1.5+**
+* **AWS CLI** (optional, for live cloud deployments)
+
+### 2. Python Virtual Environment Setup
 ```bash
-# Risk API (local Docker)
-cd 01-risk-api
-docker-compose up --build
+# Clone the repository
+git clone https://github.com/pavanmajji18/sentinel-risk-platform.git
+cd sentinel-risk-platform
 
-# Model Training
-cd 04-model-training
-pip install -r requirements.txt
-python train.py
-python test_model.py
+# Create dedicated virtual environment
+python -m venv .venv
 
-# Run API locally
-cd 01-risk-api/app
-pip install -r requirements.txt
-uvicorn main:app --reload
+# Activate virtual environment
+# On Linux/macOS:
+source .venv/bin/activate
+# On Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+
+# Install core dependencies across modules
+pip install fastapi uvicorn pydantic python-dotenv requests xgboost scikit-learn numpy pandas boto3
 ```
 
-### AWS Deployment
+### 3. Environment Variable Configuration
+Sentinel isolates credentials through environment variable templates. Never commit `.env` or `terraform.tfvars`:
+```bash
+# Configure AWS Infrastructure module
+cp 02-infra-aws/.env.example 02-infra-aws/.env
+cp 02-infra-aws/terraform.tfvars.example 02-infra-aws/terraform.tfvars
 
+# Configure Multi-Cloud module
+cp 03-multi-cloud/.env.example 03-multi-cloud/.env
+
+# Configure Model Serving module
+cp 05-model-serving/app/.env.example 05-model-serving/app/.env
+```
+
+---
+
+## Reproducibility & Step-by-Step Verification
+
+Each module contains dedicated validation scripts and reproducible entry points:
+
+### Step 1: Validate Module 01 (Risk API)
+```bash
+python 01-risk-api/validate_module01.py
+```
+*Executes tests against health probes, API key enforcement, and clean/moderate/high risk boundary transactions.*
+
+### Step 2: Validate Module 02 (AWS Infrastructure)
 ```bash
 cd 02-infra-aws
 terraform init
+terraform validate
 terraform plan
-terraform apply
+cd ..
 ```
+*Validates declarative syntax and dry-runs resource planning for 22 interconnected cloud resources.*
 
-### Multi-Cloud Deployment
-
+### Step 3: Validate Module 03 (Multi-Cloud Operations)
 ```bash
 cd 03-multi-cloud
-terraform init
-# Set provider-specific variables before apply
-terraform apply
+python validate_module03.py
+cd ..
 ```
+*Verifies live STS identity, S3 API reachability, and regulatory corpus upload/presigning lifecycle.*
+
+### Step 4: Train & Benchmark Module 04 (Model Training)
+```bash
+cd 04-model-training
+python train.py
+python test_model.py
+cd ..
+```
+*Generates synthetic transactions, executes chronological temporal splitting, trains XGBoost, tunes the decision threshold, and verifies agreement with the rules baseline.*
+
+### Step 5: Validate Module 05 (Model Serving)
+```bash
+cd 05-model-serving
+python validate_module05.py
+python sentinel_deploy.py --dry-run
+cd ..
+```
+*Tests live model loading, sub-5ms single prediction, batch prediction, and verifies cloud deployment dry-run logic.*
 
 ---
 
-## Sentinel Dataset
+## Security, Privacy & Compliance Safeguards
 
-The Sentinel dataset contains client transaction records for fraud detection and
-risk scoring. Each record includes transaction metadata used for feature engineering:
-amount, velocity, frequency patterns, and cross-entity relationships.
-
-**Data fields used for risk scoring:**
-- Transaction amount and timestamp
-- Entity identifiers (source/destination accounts)
-- Historical transaction patterns
-- Cross-entity correlation data
-
-The feature engineering pipeline (`sentinel_rules.py`) transforms raw transaction
-data into risk-relevant features consumed by the XGBoost model.
-
----
-
-## Compliance & Security
-
-- **File integrity:** SHA-256 hashing for all data and model files
-- **No hardcoded secrets:** All credentials via environment variables
-- **Least-privilege IAM:** Minimal permissions for cloud resources
-- **Network security:** Security groups and NSGs restrict access to required ports only
-- **Data exclusion:** Sensitive client data excluded from version control (see `.gitignore`)
-
-See [`compliance-audit.md`](compliance-audit.md) for the full security and compliance review.
-
----
-
-## Project Structure
-
-```
-.
-├── README.md                    # This file
-├── EURON.md                     # Project configuration
-├── compliance-audit.md          # Security & compliance review
-├── specs/                       # Client briefs and requirements
-│   ├── 01-risk-api-brief.txt
-│   ├── 02-infra-aws-brief.txt
-│   ├── 03-multi-cloud-brief.txt
-│   ├── 04-model-training-brief.txt
-│   └── 05-model-serving-brief.txt
-├── 01-risk-api/                 # FastAPI risk-scoring service
-│   ├── README.md
-│   ├── main.tf                  # Terraform (S3 bucket)
-│   └── app/
-│       ├── README.md
-│       ├── main.py              # FastAPI application
-│       └── requirements.txt
-├── 02-infra-aws/                # AWS Terraform infrastructure
-│   ├── README.md
-│   ├── app/
-│   │   ├── main.py              # Application code for EC2
-│   │   └── requirements.txt
-│   ├── iam_policy.json
-│   ├── providers.tf
-│   ├── security.tf
-│   └── variables.tf
-├── 03-multi-cloud/              # Multi-cloud Terraform modules
-│   ├── README.md
-│   ├── service-map.md           # Cross-cloud resource map
-│   └── requirements.txt
-├── 04-model-training/           # XGBoost model training
-│   ├── README.md
-│   ├── train.py                 # Model training script
-│   ├── test_model.py            # Model validation tests
-│   ├── sentinel_rules.py        # Rule-based feature engineering
-│   └── requirements.txt
-└── 05-model-serving/            # GPU model serving infrastructure
-    ├── README.md
-    ├── main.tf                  # GPU VM provisioning
-    ├── variables.tf
-    ├── backend.tf
-    ├── outputs.tf
-    └── deploy-gpu.sh            # Deployment automation
-```
+* **Zero Sensitive Data Exposure:** All training sets, mock payloads, and test cases utilize synthetic data generated via pseudorandom distributions (`numpy.random.default_rng(42)`). No personally identifiable information (PII) or proprietary client records are present.
+* **Strict Credential Abstraction:** All cloud access keys, database passwords, and API secrets are ingested exclusively via environment variables. `*.env`, `*.tfvars`, and `*.tfstate` are permanently excluded via root and module `.gitignore` rules.
+* **Least-Privilege Cloud Architecture:** IAM instance profiles and policies grant narrow permissions for specific actions (`s3:GetObject`, `s3:ListBucket`, `logs:*`), avoiding broad administrator privileges.
+* **Network Boundary Defense:** Compute nodes reside behind Application Load Balancers and restrict direct ingress. Port 8000 is accessible only from verified security groups.
 
 ---
 
 ## License
 
-This project is built..
+This project is licensed under the open-source **MIT License** — see the [LICENSE](LICENSE) file for complete details:
+
+```
+MIT License
+Copyright (c) 2026 Pavan Majji
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so.
+```

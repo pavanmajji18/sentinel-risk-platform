@@ -1,185 +1,110 @@
-# SENTINEL — AWS Infrastructure
+# SENTINEL — AWS Cloud Infrastructure (Module 02)
 
-Terraform-only infrastructure provisioning for deploying the SENTINEL Risk API
-on AWS. Creates a production-ready environment with networking, compute,
-load balancing, storage and security.
+Declarative, production-grade cloud infrastructure provisioning on Amazon Web Services using **Terraform**. Implements network isolation, automated load balancing, containerized compute provisioning, and least-privilege identity access management.
 
 ---
 
-## Architecture
+## Infrastructure Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                          AWS VPC                                 │
-│                                                                  │
-│  ┌──────────────────┐       ┌──────────────────┐                │
-│  │   Public Subnet  │       │   Public Subnet  │                │
-│  │   (AZ-1)         │       │   (AZ-2)         │                │
-│  │                  │       │                  │                │
-│  │  ┌────────────┐  │       │  ┌────────────┐  │                │
-│  │  │   ALB      │  │       │  │   ALB      │  │                │
-│  │  │ (Health    │  │       │  │ (Health    │  │                │
-│  │  │  Checks)   │  │       │  │  Checks)   │  │                │
-│  │  └─────┬──────┘  │       │  └─────┬──────┘  │                │
-│  │        │         │       │        │         │                │
-│  │  ┌─────┴──────┐  │       │  ┌─────┴──────┐  │                │
-│  │  │  EC2       │  │       │  │  EC2       │  │                │
-│  │  │  (Risk API)│  │       │  │  (Risk API)│  │                │
-│  │  └────────────┘  │       │  └────────────┘  │                │
-│  └──────────────────┘       └──────────────────┘                │
-│                                                                  │
-│  ┌──────────────────┐       ┌──────────────────┐                │
-│  │  Private Subnet  │       │  Private Subnet  │                │
-│  │  (AZ-1)          │       │  (AZ-2)          │                │
-│  └──────────────────┘       └──────────────────┘                │
-│                                                                  │
-│  ┌─────────────────────────────────────────┐                    │
-│  │            S3 Bucket                     │                    │
-│  │     (Model Artifacts + Data)             │                    │
-│  └─────────────────────────────────────────┘                    │
-│                                                                  │
-│  ┌─────────────────────────────────────────┐                    │
-│  │            IAM Role & Policy             │                    │
-│  │   (S3 Read + CloudWatch Logs)            │                    │
-│  └─────────────────────────────────────────┘                    │
-└──────────────────────────────────────────────────────────────────┘
+                                  Internet
+                                     │
+                             [ Port 80 HTTP ]
+                                     │
+                       ┌─────────────▼─────────────┐
+                       │  Application Load Balancer │
+                       │    (sentinel-alb-sg)      │
+                       └─────────────┬─────────────┘
+                                     │
+              ┌──────────────────────┴──────────────────────┐
+              │                                             │
+      Subnet: us-east-1a                            Subnet: us-east-1b
+              │                                             │
+       [ Port 8000 ]                                 (Failover / Spare)
+              │
+    ┌─────────▼─────────┐
+    │   EC2 Instance    │
+    │ (sentinel-ec2-sg) │
+    │   Docker Daemon   │
+    │   FastAPI App     │
+    └───────────────────┘
 ```
 
-## Resources Created
+---
 
-### Networking
-- **VPC:** Custom VPC with CIDR block defined in variables
-- **Subnets:** Public and private subnets across multiple availability zones
-- **Internet Gateway:** Enables outbound internet access
-- **Route Tables:** Separate routing for public and private subnets
+## Provisioned AWS Resources (22 Planned Elements)
 
-### Compute
-- **EC2 Instances:** t3.micro instances running the Risk API application
-- **Launch Template:** Standardised AMI, instance type and security group
-- **Auto Scaling:** (Optional) Scale based on load
+### 1. Networking & VPC Topology (`vpc.tf`)
+* **Virtual Private Cloud (VPC):** `10.0.0.0/16` CIDR with DNS resolution and hostnames enabled.
+* **Public Subnets:** Multi-AZ layout across `us-east-1a` (`10.0.1.0/24`) and `us-east-1b` (`10.0.2.0/24`) for load balancer high availability.
+* **Internet Gateway & Route Tables:** Custom internet gateway (`sentinel-igw`) associated with public subnets.
 
-### Load Balancing
-- **Application Load Balancer:** Distributes traffic across EC2 instances
-- **Target Group:** Health check configuration for instance readiness
-- **Listener:** HTTP/HTTPS routing to target group
+### 2. Security Groups & Network Firewalls (`security.tf`)
+* **ALB Security Group (`sentinel-alb-sg`):** Restricts inbound access to HTTP port 80 from configurable CIDRs (e.g., corporate VPN or public perimeter).
+* **EC2 Security Group (`sentinel-ec2-sg`):** Restricts application port 8000 inbound traffic **exclusively** to requests originating from `sentinel-alb-sg`. Direct public ingress to compute nodes is strictly blocked.
 
-### Storage
-- **S3 Bucket:** Stores model artifacts (`model.onnx`) and transaction data
-- **Versioning:** (Optional) Enable for backup and recovery
+### 3. Compute & Bootstrap Automation (`compute.tf`)
+* **EC2 Instance:** `t3.micro` compute running Amazon Linux 2023.
+* **AMI Handling:** Automatic lookup of latest official Amazon Linux 2023 HVM AMI, with support for explicit `ami_id` overrides.
+* **Cloud-Init Bootstrapping:** User data script automatically installs the Docker runtime, provisions application container files, builds the isolated container, and launches the service with system restart policies.
+* **API Key Generation:** Built-in `random_password.api_key` generates a cryptographically secure 32-character authentication token injected directly into the instance environment.
 
-### Security
-- **Security Groups:**
-  - ALB security group: Allow HTTP (80) and HTTPS (443) from anywhere
-  - EC2 security group: Allow traffic only from ALB security group
-- **IAM Role:** Attached to EC2 instances with minimal permissions:
-  - `s3:GetObject`, `s3:ListBucket` for model/data access
-  - `logs:*` for CloudWatch log delivery
-- **SSH Key Pair:** For administrative access (optional IP restriction)
+### 4. Load Balancing & Health Probes (`alb.tf`)
+* **Application Load Balancer (`aws_lb.api`):** External load balancer distributed across both availability zones.
+* **Target Group & Health Check:** Routes traffic to compute targets on port 8000, running active HTTP health probes against `GET /health` with a 30-second interval.
+
+### 5. Identity & Access Management (`security.tf`)
+* **IAM Instance Profile & Role (`sentinel-ec2-role`):** Enables compute instances to assume least-privilege cloud roles without local credentials.
+* **Least-Privilege Group Policy:** Explicit granular actions for EC2, VPC, ALB, and CloudWatch operations, avoiding administrative wildcard policies.
 
 ---
 
-## Implementation Details
+## Configuration & Variables
 
-### `providers.tf`
-Configures the AWS provider with region selection.
+Copy `terraform.tfvars.example` to `terraform.tfvars` (untracked):
 
-### `security.tf`
-- Security group definitions for ALB and EC2
-- Inbound/outbound rule restrictions
-- SSH key management
+```hcl
+aws_region          = "us-east-1"
+instance_type       = "t3.micro"
+instance_count      = 1
+allowed_cidr_blocks = ["YOUR_OFFICE_OR_VPN_IP/32"]
 
-### `iam_policy.json`
-Least-privilege IAM policy granting:
-- S3 read access for model and data files
-- CloudWatch log write access for monitoring
-
-### `variables.tf`
-Configurable parameters:
-- `region` — AWS region (default: `us-east-1`)
-- `environment` — Deployment environment (`dev`, `staging`, `production`)
-- `instance_type` — EC2 instance type (default: `t3.micro`)
-- `vpc_cidr` — VPC CIDR block
-- `ssh_key_name` — SSH key pair name for admin access
-
-### Application Code
-The `app/` directory contains the FastAPI application deployed to EC2 instances,
-matching the Risk API from Component 1.
+# Optional: Set explicit AMI ID if organizational SCP blocks ec2:DescribeImages
+ami_id              = "ami-0c101f26f147fa7fd"
+```
 
 ---
 
-## Deployment Steps
+## Deployment & Verification Workflow
 
-### 1. Initialise Terraform
+### 1. Initialize Providers & Modules
 ```bash
 terraform init
 ```
 
-### 2. Review the Plan
+### 2. Validate Syntax & Provider Schemas
 ```bash
-terraform plan -var="environment=production" -var="region=us-east-1"
+terraform validate
 ```
 
-### 3. Apply the Configuration
+### 3. Generate Dry-Run Execution Plan
 ```bash
-terraform apply -var="environment=production" -var="region=us-east-1"
+terraform plan
 ```
 
-### 4. Verify Deployment
+### 4. Apply (Staging / Production)
 ```bash
-# Check EC2 instance status
-terraform output instance_id
-
-# Check ALB DNS name
-terraform output alb_dns_name
+terraform apply
 ```
 
-### 5. Upload Model Artifacts
+### 5. Inspect Outputs
 ```bash
-aws s3 cp ../04-model-training/model.onnx s3://<bucket-name>/model.onnx
+terraform output api_url
+terraform output health_url
+terraform output -raw api_key
 ```
 
----
-
-## Sentinel Data Integration
-
-The S3 bucket stores:
-- **Model artifacts:** `model.onnx` (ONNX-exported XGBoost model from Component 4)
-- **Transaction data:** Client data used for scoring (excluded from repo via `.gitignore`)
-- **Configuration files:** Environment-specific settings
-
-The IAM policy ensures EC2 instances can read these files without hardcoded credentials.
-
----
-
-## File Structure
-
+### 6. Decommission Infrastructure
+```bash
+terraform destroy
 ```
-02-infra-aws/
-├── README.md             # This file
-├── providers.tf          # AWS provider configuration
-├── security.tf           # Security groups and networking
-├── variables.tf          # Configurable variables
-├── iam_policy.json       # IAM role policy
-└── app/
-    ├── main.py           # Risk API application code
-    └── requirements.txt  # Python dependencies
-```
-
----
-
-See the top-level [README.md](../README.md) for the full platform architecture.
-
----
-
-## Security Notes
-
-| Item | Status | Production Guidance |
-|------|--------|---------------------|
-| ALB listener protocol | HTTP (port 80) | Add ACM certificate + HTTPS listener (port 443) before production |
-| IAM policy | Least-privilege (no AdministratorAccess) | Scope EC2 ARNs further if multi-account |
-| API key enforcement | Application-layer only | For higher assurance, add an AWS API Gateway with usage plans |
-| SSH access | Restricted to ALB-sourced SG on EC2 | Use AWS Systems Manager Session Manager instead of open SSH |
-| Credentials | Environment variables via `.env` (never committed) | Use AWS Secrets Manager or IAM Instance Profile in production |
-
-> **Note:** The `.env` file is listed in `.gitignore` and **must never be committed**.
-> Use `aws configure` or IAM Instance Profiles instead of hardcoded keys in production.
