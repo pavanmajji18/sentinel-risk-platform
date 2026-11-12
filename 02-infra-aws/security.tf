@@ -1,127 +1,16 @@
-# Sentinel user group with custom least-privilege policy (no AdminAccess)
+# Sentinel user group with custom least-privilege policy (loaded from iam_policy.json)
 resource "aws_iam_group" "sentinel" {
   name = "sentinel-team"
-}
-
-data "aws_iam_policy_document" "sentinel_least_privilege" {
-  # EC2 Read-Only
-  statement {
-    sid = "SentinelEC2ReadOnly"
-    actions = [
-      "ec2:DescribeInstances",
-      "ec2:DescribeSecurityGroups",
-      "ec2:DescribeSubnets",
-      "ec2:DescribeVpcs",
-      "ec2:DescribeInternetGateways",
-      "ec2:DescribeLaunchTemplates",
-      "ec2:DescribeImages"
-    ]
-    resources = ["*"]
-  }
-
-  # EC2 Mutating (run, terminate, security groups)
-  statement {
-    sid = "SentinelEC2Mutate"
-    actions = [
-      "ec2:RunInstances",
-      "ec2:TerminateInstances",
-      "ec2:CreateTags",
-      "ec2:CreateSecurityGroup",
-      "ec2:AuthorizeSecurityGroupIngress",
-      "ec2:DeleteSecurityGroup"
-    ]
-    resources = ["*"]
-  }
-
-  # VPC / networking
-  statement {
-    sid = "SentinelVPCManage"
-    actions = [
-      "ec2:CreateVpc",
-      "ec2:DeleteVpc",
-      "ec2:CreateInternetGateway",
-      "ec2:DeleteInternetGateway",
-      "ec2:AttachInternetGateway",
-      "ec2:DetachInternetGateway",
-      "ec2:CreateRouteTable",
-      "ec2:DeleteRouteTable",
-      "ec2:CreateRoute",
-      "ec2:DeleteRoute",
-      "ec2:AssociateRouteTable",
-      "ec2:DisassociateRouteTable",
-      "ec2:CreateSubnet",
-      "ec2:DeleteSubnet"
-    ]
-    resources = ["*"]
-  }
-
-  # ALB Read-Only
-  statement {
-    sid = "SentinelALBReadOnly"
-    actions = [
-      "elasticloadbalancing:DescribeLoadBalancers",
-      "elasticloadbalancing:DescribeTargetGroups",
-      "elasticloadbalancing:DescribeTargetHealth"
-    ]
-    resources = ["*"]
-  }
-
-  # ALB Mutating
-  statement {
-    sid = "SentinelALBMutate"
-    actions = [
-      "elasticloadbalancing:CreateLoadBalancer",
-      "elasticloadbalancing:DeleteLoadBalancer",
-      "elasticloadbalancing:CreateTargetGroup",
-      "elasticloadbalancing:DeleteTargetGroup",
-      "elasticloadbalancing:RegisterTargets",
-      "elasticloadbalancing:DeregisterTargets",
-      "elasticloadbalancing:ModifyTargetGroup",
-      "elasticloadbalancing:ModifyLoadBalancerAttributes",
-      "elasticloadbalancing:AddTags",
-      "elasticloadbalancing:RemoveTags"
-    ]
-    resources = ["*"]
-  }
-
-  # IAM roles for the EC2 instance profile
-  statement {
-    sid = "SentinelIAMRole"
-    actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
-      "iam:AttachRolePolicy",
-      "iam:DetachRolePolicy",
-      "iam:PutRolePolicy",
-      "iam:DeleteRolePolicy",
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:PassRole"
-    ]
-    resources = ["arn:aws:iam::*:role/sentinel-*"]
-  }
-
-  # S3: sentinel-corpus buckets only
-  statement {
-    sid = "SentinelS3Bucket"
-    actions = [
-      "s3:ListBucket",
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject"
-    ]
-    resources = [
-      "arn:aws:s3:::sentinel-corpus-*",
-      "arn:aws:s3:::sentinel-corpus-*/*"
-    ]
-  }
 }
 
 resource "aws_iam_group_policy" "sentinel" {
   name   = "sentinel-least-privilege"
   group  = aws_iam_group.sentinel.name
-  policy = data.aws_iam_policy_document.sentinel_least_privilege.json
+  policy = replace(
+    file("${path.module}/iam_policy.json"),
+    "$${var.aws_account_id}",
+    var.aws_account_id != "*" ? var.aws_account_id : "*"
+  )
 }
 
 # Sentinel IAM user added to the group

@@ -3,12 +3,14 @@
 .env.*
 !.env.example
 
-# Terraform state (never commit)
+# Terraform state & saved plans (never commit)
 *.tfstate
 *.tfstate.backup
 *.tfstate.*
 .terraform/
 terraform.tfstate
+tfplan
+*.tfplan
 override.tf
 override.tf.json
 *_override.tf

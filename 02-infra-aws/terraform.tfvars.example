@@ -3,10 +3,13 @@
 aws_region     = "us-east-1"
 instance_type  = "t3.micro"
 instance_count = 1
-# Restrict SSH access to your own IP for security.
-# Find yours: curl https://checkip.amazonaws.com
-allowed_cidr_blocks = ["YOUR_IP/32"]
-# Optional: explicit AMI ID (e.g. if organization SCP restricts ec2:DescribeImages)
-ami_id = "ami-0c101f26f147fa7fd"
 
+# CIDR blocks permitted to access the Application Load Balancer on HTTP port 80.
+# Use ["0.0.0.0/0"] for public internet evaluation or ["YOUR_IP/32"] for perimeter restriction.
+allowed_cidr_blocks = ["0.0.0.0/0"]
 
+# Optional: explicit Amazon Linux 2023 AMI ID (if organization SCP restricts ec2:DescribeImages)
+ami_id = ""
+
+# Optional: target AWS account ID for scoped IAM policy ARNs (defaults to wildcard *)
+aws_account_id = "*"

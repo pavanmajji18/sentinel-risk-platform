@@ -34,60 +34,14 @@ resource "aws_instance" "api" {
               mkdir -p /opt/app
 
               cat > /opt/app/requirements.txt << 'REQEOF'
-              fastapi>=0.115.0
-              uvicorn>=0.34.0
-              pydantic>=2.10.0
-              REQEOF
-
-              cat > /opt/app/main.py << 'PYEOF'
-              from fastapi import FastAPI, Depends, HTTPException, Header
-              from typing import Optional
-              import os
-
-              app = FastAPI(title="Sentinel Risk API")
-
-              SENTINEL_API_KEY = os.environ.get("SENTINEL_API_KEY", "")
-
-
-              def verify_api_key(
-                  x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-              ):
-                  if x_api_key is None:
-                      raise HTTPException(status_code=401, detail="X-API-Key header required")
-                  if x_api_key != SENTINEL_API_KEY:
-                      raise HTTPException(status_code=401, detail="Invalid API key")
-                  return x_api_key
-
-
-              @app.get("/health")
-              def health():
-                  return {"status": "ok"}
-
-
-              @app.get("/score")
-              def score(
-                  text: str = "",
-                  _key: str = Depends(verify_api_key),
-              ):
-                  risk_words = ["fraud", "scam", "phishing", "malware", "hacker", "stolen"]
-                  score_value = sum(1 for word in risk_words if word.lower() in text.lower())
-                  level = "low"
-                  if score_value >= 3:
-                      level = "high"
-                  elif score_value >= 1:
-                      level = "medium"
-                  return {"text": text, "score": score_value, "level": level}
-              PYEOF
+${file("${path.module}/app/requirements.txt")}
+REQEOF
 
               cat > /opt/app/Dockerfile << 'DOCKEREOF'
-              FROM python:3.11-slim
-              WORKDIR /app
-              COPY requirements.txt .
-              RUN pip install --no-cache-dir -r requirements.txt
-              COPY main.py .
-              EXPOSE 8000
-              CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-              DOCKEREOF
+${file("${path.module}/app/Dockerfile")}
+DOCKEREOF
+
+              echo "${base64gzip(file("${path.module}/app/main.py"))}" | base64 -d | gzip -d > /opt/app/main.py
 
               # Build and run the Docker container
               cd /opt/app

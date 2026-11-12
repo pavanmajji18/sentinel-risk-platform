@@ -55,6 +55,8 @@ model_*.gz
 .terraform.lock.hcl
 *.tfvars
 !*.tfvars.example
+tfplan
+*.tfplan
 
 # Python Cache & Virtual Environments
 __pycache__/

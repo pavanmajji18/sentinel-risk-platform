@@ -19,7 +19,7 @@ variable "instance_count" {
 variable "allowed_cidr_blocks" {
   description = "CIDR blocks allowed to reach the ALB"
   type        = list(string)
-  default     = ["10.0.0.0/8"]
+  default     = ["0.0.0.0/0"]
 }
 
 variable "ami_id" {
@@ -28,3 +28,8 @@ variable "ami_id" {
   default     = ""
 }
 
+variable "aws_account_id" {
+  description = "AWS Account ID for IAM policy resource scoping (defaults to wildcard * if unset)"
+  type        = string
+  default     = "*"
+}

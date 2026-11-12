@@ -22,7 +22,7 @@ import json
 import math
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -192,7 +192,7 @@ def engineer_features(txn: TransactionInput, context: dict) -> dict:
             "recent_transactions": [txn.timestamp],
             "recent_amounts": [(txn.timestamp, txn.amount)],
             "failed_txns": [],
-            "created_at": (ts - datetime.timedelta(days=365)).isoformat(),
+            "created_at": (ts - timedelta(days=365)).isoformat(),
             "lat": txn.lat,
             "lon": txn.lon,
         }
@@ -243,7 +243,7 @@ MCC_RISK = {
 # 14 Risk Rules
 # ---------------------------------------------------------------------------
 
-def apply_rules(txn: TransactionInput, features: dict) -> list[str]:
+def apply_rules(txn: TransactionInput, features: dict, context: Optional[dict] = None) -> list[str]:
     """
     Apply 14 fraud detection rules. Returns list of triggered rule IDs.
 
@@ -263,6 +263,9 @@ def apply_rules(txn: TransactionInput, features: dict) -> list[str]:
     - R12:  Amount > 5x customer average
     - R14:  Device seen with many customers (>10)
     """
+    if context is None:
+        context = session_context
+
     triggered = []
 
     # FR01: Very high amount-to-average ratio
@@ -399,8 +402,12 @@ def load_model(path: str):
         if p.exists():
             try:
                 import xgboost as xgb
-                m = xgb.XGBClassifier()
+                m = xgb.XGBClassifier(n_jobs=1)
                 m.load_model(str(p))
+                try:
+                    m.set_params(n_jobs=1)
+                except Exception:
+                    pass
                 logger.info("Loaded XGBoost model from %s", p)
                 return m
             except Exception:
@@ -504,7 +511,7 @@ async def score(txn: TransactionInput, x_api_key: Optional[str] = Header(None)):
     verify_api_key(x_api_key)
 
     features = engineer_features(txn, session_context)
-    triggered = apply_rules(txn, features)
+    triggered = apply_rules(txn, features, session_context)
     risk_score = compute_risk_score(triggered, features)
     fraud_prob = predict_proba(features)
     band = assign_band(risk_score)
@@ -521,13 +528,47 @@ async def score(txn: TransactionInput, x_api_key: Optional[str] = Header(None)):
     )
 
 
+@app.get("/score", response_model=ScoreResponse)
+async def score_get(x_api_key: Optional[str] = Header(None)):
+    """Score verification via GET with default reference transaction."""
+    verify_api_key(x_api_key)
+    demo_txn = TransactionInput(
+        txn_id="TX-DEMO-001",
+        customer_id="CUST-DEMO-1001",
+        merchant_id="MERCH-5001",
+        device_id="DEV-3001",
+        amount=25000.0,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        lat=18.52,
+        lon=73.86,
+        mcc_code="MCC-5411",
+        channel="CARD"
+    )
+    features = engineer_features(demo_txn, session_context)
+    triggered = apply_rules(demo_txn, features, session_context)
+    risk_score = compute_risk_score(triggered, features)
+    fraud_prob = predict_proba(features)
+    band = assign_band(risk_score)
+
+    return ScoreResponse(
+        txn_id=demo_txn.txn_id,
+        risk_score=risk_score,
+        risk_band=band,
+        triggered_rules=triggered,
+        fraud_probability=fraud_prob,
+        features=features,
+        recommendation=recommend(band),
+        explanation=explain(demo_txn, triggered, band)
+    )
+
+
 @app.post("/score/v1", response_model=ScoreResponse)
 async def score_v1(txn: TransactionInput, x_api_key: Optional[str] = Header(None)):
     """Score a single transaction (v1 endpoint, same logic as v2)."""
     verify_api_key(x_api_key)
 
     features = engineer_features(txn, session_context)
-    triggered = apply_rules(txn, features)
+    triggered = apply_rules(txn, features, session_context)
     risk_score = compute_risk_score(triggered, features)
     fraud_prob = predict_proba(features)
     band = assign_band(risk_score)
@@ -545,16 +586,14 @@ async def score_v1(txn: TransactionInput, x_api_key: Optional[str] = Header(None
 
 
 @app.post("/score/batch", response_model=BatchScoreResponse)
-async def score_batch(request: Request, x_api_key: Optional[str] = Header(None)):
+async def score_batch(transactions: list[TransactionInput], x_api_key: Optional[str] = Header(None)):
     """Score a batch of transactions (array of TransactionInput)."""
     verify_api_key(x_api_key)
 
-    body = await request.json()
     results = []
-    for txn_dict in body:
-        txn = TransactionInput(**txn_dict)
+    for txn in transactions:
         features = engineer_features(txn, session_context)
-        triggered = apply_rules(txn, features)
+        triggered = apply_rules(txn, features, session_context)
         risk_score = compute_risk_score(triggered, features)
         fraud_prob = predict_proba(features)
         band = assign_band(risk_score)
