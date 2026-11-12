@@ -22,6 +22,7 @@ logs/
 # Sensitive Data Exclusions
 sentinel_data/
 sentinel_data.zip
+02-infra-aws.zip
 documents/
 config_changes/
 data/

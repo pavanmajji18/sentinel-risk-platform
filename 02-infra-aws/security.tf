@@ -4,8 +4,8 @@ resource "aws_iam_group" "sentinel" {
 }
 
 resource "aws_iam_group_policy" "sentinel" {
-  name   = "sentinel-least-privilege"
-  group  = aws_iam_group.sentinel.name
+  name  = "sentinel-least-privilege"
+  group = aws_iam_group.sentinel.name
   policy = replace(
     file("${path.module}/iam_policy.json"),
     "$${var.aws_account_id}",
@@ -16,6 +16,10 @@ resource "aws_iam_group_policy" "sentinel" {
 # Sentinel IAM user added to the group
 resource "aws_iam_user" "sentinel" {
   name = "sentinel-deployer"
+}
+
+resource "aws_iam_access_key" "sentinel" {
+  user = aws_iam_user.sentinel.name
 }
 
 resource "aws_iam_user_group_membership" "sentinel" {
